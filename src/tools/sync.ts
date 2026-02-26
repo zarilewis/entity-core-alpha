@@ -1,0 +1,238 @@
+/**
+ * Sync Tools
+ *
+ * MCP tools for synchronizing my core with embodiments.
+ * Handles pull, push, and conflict resolution.
+ */
+
+import { z } from "zod";
+import type { FileStore } from "../storage/mod.ts";
+import type {
+  SyncResponse,
+  SyncToken,
+  InstanceInfo,
+  IdentityFile,
+  MemoryEntry,
+} from "../types.ts";
+import { resolveIdentityConflict, resolveMemoryConflict } from "../sync/mod.ts";
+
+/**
+ * Input schema for sync/pull tool.
+ */
+export const SyncPullSchema = z.object({
+  instanceId: z.string().min(1),
+  lastSyncVersion: z.number().optional(),
+});
+
+/**
+ * Input schema for sync/push tool.
+ */
+export const SyncPushSchema = z.object({
+  instance: z.object({
+    id: z.string().min(1),
+    type: z.enum(["sby", "sillytavern", "openwebui", "claude-code", "other"]),
+    name: z.string().optional(),
+    version: z.number(),
+  }),
+  identityChanges: z.array(z.object({
+    category: z.enum(["self", "user", "relationship"]),
+    filename: z.string(),
+    content: z.string(),
+    version: z.number(),
+    lastModified: z.string(),
+    modifiedBy: z.string(),
+  })).optional(),
+  memoryChanges: z.array(z.object({
+    granularity: z.enum(["daily", "weekly", "monthly", "yearly", "significant"]),
+    date: z.string(),
+    content: z.string(),
+    chatIds: z.array(z.string()),
+    sourceInstance: z.string(),
+    participatingInstances: z.array(z.string()).optional(),
+    version: z.number(),
+  })).optional(),
+  lastSyncVersion: z.number().optional(),
+});
+
+/**
+ * Server state for tracking sync versions.
+ */
+interface SyncState {
+  serverVersion: number;
+  instances: Map<string, InstanceInfo>;
+}
+
+// Global sync state (in-memory for now, should persist)
+const syncState: SyncState = {
+  serverVersion: 1,
+  instances: new Map(),
+};
+
+/**
+ * Generate a sync token.
+ */
+function generateSyncToken(): SyncToken {
+  return {
+    serverVersion: syncState.serverVersion,
+    timestamp: new Date().toISOString(),
+    hash: crypto.randomUUID().slice(0, 8),
+  };
+}
+
+/**
+ * Create the sync/pull tool handler.
+ */
+export function createSyncPullHandler(store: FileStore) {
+  return async (input: z.infer<typeof SyncPullSchema>): Promise<SyncResponse> => {
+    const { instanceId } = input;
+
+    // Update instance info
+    const existingInstance = syncState.instances.get(instanceId);
+    syncState.instances.set(instanceId, {
+      id: instanceId,
+      type: existingInstance?.type ?? "other",
+      lastSync: new Date().toISOString(),
+      version: existingInstance?.version ?? 1,
+    });
+
+    // Read all identity files
+    const identityFiles = await store.readAllIdentity();
+
+    // Read all memories
+    const granularities = ["daily", "weekly", "monthly", "yearly", "significant"] as const;
+    const memories: MemoryEntry[] = [];
+
+    for (const granularity of granularities) {
+      const list = await store.listMemories(granularity);
+      memories.push(...list);
+    }
+
+    return {
+      success: true,
+      identityFiles,
+      memories,
+      newSyncToken: generateSyncToken(),
+    };
+  };
+}
+
+/**
+ * Create the sync/push tool handler.
+ */
+export function createSyncPushHandler(store: FileStore) {
+  return async (input: z.infer<typeof SyncPushSchema>): Promise<SyncResponse> => {
+    const { instance, identityChanges = [], memoryChanges = [] } = input;
+
+    // Register/update instance
+    syncState.instances.set(instance.id, {
+      ...instance,
+      lastSync: new Date().toISOString(),
+    } as InstanceInfo);
+
+    const conflicts: SyncResponse["conflicts"] = [];
+
+    // Process identity changes
+    for (const change of identityChanges) {
+      const identityFile: IdentityFile = change;
+
+      // Read existing file to check for conflicts
+      const existingFiles = await store.readIdentityCategory(change.category);
+      const existing = existingFiles.find((f) => f.filename === change.filename);
+
+      if (existing && existing.content !== change.content) {
+        // Conflict detected
+        const { winner, resolution } = resolveIdentityConflict(
+          identityFile,
+          existing,
+          "last_write_wins",
+        );
+
+        if (resolution === "merge") {
+          // Need manual resolution
+          conflicts.push({
+            entityType: "identity",
+            entityId: `${change.category}/${change.filename}`,
+            localVersion: identityFile,
+            serverVersion: existing,
+            suggestedResolution: "merge",
+          });
+        } else {
+          // Auto-resolve
+          await store.writeIdentityFile(winner);
+        }
+      } else {
+        // No conflict, write directly
+        await store.writeIdentityFile(identityFile);
+      }
+    }
+
+    // Process memory changes
+    for (const change of memoryChanges) {
+      const memoryEntry: MemoryEntry = {
+        ...change,
+        id: `${change.granularity}-${change.date}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Check for existing memory
+      const existing = await store.readMemory(change.granularity, change.date);
+
+      if (existing && existing.content !== change.content) {
+        // For memories, merge both versions
+        const { winner } = resolveMemoryConflict(memoryEntry, existing);
+        await store.writeMemory(winner);
+      } else {
+        await store.writeMemory(memoryEntry);
+      }
+    }
+
+    // Increment server version
+    syncState.serverVersion++;
+
+    return {
+      success: true,
+      newSyncToken: generateSyncToken(),
+      conflicts: conflicts.length > 0 ? conflicts : undefined,
+    };
+  };
+}
+
+/**
+ * Create the sync/status tool handler.
+ */
+export function createSyncStatusHandler() {
+  return async (): Promise<{
+    serverVersion: number;
+    connectedInstances: Array<{ id: string; lastSync: string }>;
+  }> => {
+    return {
+      serverVersion: syncState.serverVersion,
+      connectedInstances: Array.from(syncState.instances.values()).map((i) => ({
+        id: i.id,
+        lastSync: i.lastSync ?? "never",
+      })),
+    };
+  };
+}
+
+/**
+ * Tool definitions for MCP registration.
+ */
+export const syncTools = {
+  "sync/pull": {
+    description:
+      "Pull all my identity files and memories from my core. Use this when starting up to sync with my canonical state.",
+    inputSchema: SyncPullSchema,
+  },
+  "sync/push": {
+    description:
+      "Push changes from an embodiment to my core. I'll resolve conflicts automatically when possible, or flag them for review.",
+    inputSchema: SyncPushSchema,
+  },
+  "sync/status": {
+    description:
+      "Check the sync status of my core - what version I'm at and which embodiments have connected.",
+    inputSchema: z.object({}),
+  },
+};

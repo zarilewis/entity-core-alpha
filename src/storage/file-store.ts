@@ -1,0 +1,258 @@
+/**
+ * File-based Storage
+ *
+ * Handles reading and writing identity files and memories from disk.
+ * All files are stored from my first-person perspective.
+ */
+
+import { join } from "@std/path";
+import { ensureDir } from "@std/fs";
+import type { IdentityFile, MemoryEntry, IdentityContent, Granularity } from "../types.ts";
+
+/**
+ * File store for my identity and memories.
+ */
+export class FileStore {
+  private readonly dataDir: string;
+
+  constructor(dataDir: string) {
+    this.dataDir = dataDir;
+  }
+
+  /**
+   * Initialize the storage directories.
+   */
+  async initialize(): Promise<void> {
+    const dirs = [
+      join(this.dataDir, "self"),
+      join(this.dataDir, "user"),
+      join(this.dataDir, "relationship"),
+      join(this.dataDir, "memories", "daily"),
+      join(this.dataDir, "memories", "weekly"),
+      join(this.dataDir, "memories", "monthly"),
+      join(this.dataDir, "memories", "yearly"),
+      join(this.dataDir, "memories", "significant"),
+      join(this.dataDir, "memories", "archive", "daily"),
+    ];
+
+    for (const dir of dirs) {
+      await ensureDir(dir);
+    }
+  }
+
+  // ===== Identity Files =====
+
+  /**
+   * Read all identity files from a category.
+   */
+  async readIdentityCategory(category: "self" | "user" | "relationship"): Promise<IdentityFile[]> {
+    const dir = join(this.dataDir, category);
+    const files: IdentityFile[] = [];
+
+    try {
+      for await (const entry of Deno.readDir(dir)) {
+        if (entry.isFile && entry.name.endsWith(".md")) {
+          const filePath = join(dir, entry.name);
+          const content = await Deno.readTextFile(filePath);
+          const stat = await Deno.stat(filePath);
+
+          files.push({
+            category,
+            filename: entry.name,
+            content,
+            version: 1, // TODO: Track actual versions
+            lastModified: stat.mtime?.toISOString() ?? new Date().toISOString(),
+            modifiedBy: "unknown", // TODO: Track modifier
+          });
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
+
+    // Sort by predefined order
+    const order = IDENTITY_FILE_ORDER[category];
+    files.sort((a, b) => {
+      const aIndex = order.indexOf(a.filename);
+      const bIndex = order.indexOf(b.filename);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.filename.localeCompare(b.filename);
+    });
+
+    return files;
+  }
+
+  /**
+   * Read all identity files.
+   */
+  async readAllIdentity(): Promise<IdentityContent> {
+    const [self, user, relationship] = await Promise.all([
+      this.readIdentityCategory("self"),
+      this.readIdentityCategory("user"),
+      this.readIdentityCategory("relationship"),
+    ]);
+
+    return { self, user, relationship };
+  }
+
+  /**
+   * Write an identity file.
+   */
+  async writeIdentityFile(file: IdentityFile): Promise<void> {
+    const dir = join(this.dataDir, file.category);
+    await ensureDir(dir);
+    const filePath = join(dir, file.filename);
+    await Deno.writeTextFile(filePath, file.content);
+  }
+
+  // ===== Memory Files =====
+
+  /**
+   * Get the file path for a memory entry.
+   */
+  getMemoryPath(entry: { granularity: Granularity; date: string }): string {
+    const { granularity, date } = entry;
+    return join(this.dataDir, "memories", granularity, `${date}.md`);
+  }
+
+  /**
+   * Read a memory file by granularity and date.
+   */
+  async readMemory(granularity: Granularity, date: string): Promise<MemoryEntry | null> {
+    const filePath = this.getMemoryPath({ granularity, date });
+
+    try {
+      const content = await Deno.readTextFile(filePath);
+      const stat = await Deno.stat(filePath);
+
+      return {
+        id: `${granularity}-${date}`,
+        granularity,
+        date,
+        content,
+        chatIds: [], // TODO: Parse from content
+        sourceInstance: "unknown", // TODO: Parse from content
+        version: 1,
+        createdAt: stat.birthtime?.toISOString() ?? new Date().toISOString(),
+        updatedAt: stat.mtime?.toISOString() ?? new Date().toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * List all memories of a granularity.
+   */
+  async listMemories(granularity: Granularity): Promise<MemoryEntry[]> {
+    const dir = join(this.dataDir, "memories", granularity);
+    const memories: MemoryEntry[] = [];
+
+    try {
+      for await (const entry of Deno.readDir(dir)) {
+        if (entry.isFile && entry.name.endsWith(".md")) {
+          const date = entry.name.replace(".md", "");
+          const memory = await this.readMemory(granularity, date);
+          if (memory) {
+            memories.push(memory);
+          }
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
+
+    return memories.sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  /**
+   * Write a memory entry.
+   */
+  async writeMemory(entry: MemoryEntry): Promise<void> {
+    const dir = join(this.dataDir, "memories", entry.granularity);
+    await ensureDir(dir);
+    const filePath = this.getMemoryPath(entry);
+    await Deno.writeTextFile(filePath, entry.content);
+  }
+
+  /**
+   * Archive a memory file (move to archive directory).
+   */
+  async archiveMemory(granularity: Granularity, date: string): Promise<void> {
+    if (granularity !== "daily") {
+      throw new Error("Only daily memories can be archived");
+    }
+
+    const sourcePath = this.getMemoryPath({ granularity, date });
+    const archiveDir = join(this.dataDir, "memories", "archive", "daily");
+    await ensureDir(archiveDir);
+    const destPath = join(archiveDir, `${date}.md`);
+
+    try {
+      await Deno.rename(sourcePath, destPath);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Get all memory content for RAG indexing.
+   */
+  async getAllMemoryContent(): Promise<string[]> {
+    const granularities: Granularity[] = ["daily", "weekly", "monthly", "yearly", "significant"];
+    const contents: string[] = [];
+
+    for (const granularity of granularities) {
+      const memories = await this.listMemories(granularity);
+      for (const memory of memories) {
+        contents.push(`# ${memory.granularity} - ${memory.date}\n\n${memory.content}`);
+      }
+    }
+
+    return contents;
+  }
+}
+
+/**
+ * File order for identity files.
+ */
+const IDENTITY_FILE_ORDER: Record<"self" | "user" | "relationship", string[]> = {
+  self: [
+    "my_identity.md",
+    "my_persona.md",
+    "my_personhood.md",
+    "my_wants.md",
+    "my_mechanics.md",
+  ],
+  user: [
+    "user_identity.md",
+    "user_life.md",
+    "user_beliefs.md",
+    "user_preferences.md",
+    "user_patterns.md",
+    "user_notes.md",
+  ],
+  relationship: [
+    "relationship_dynamics.md",
+    "relationship_history.md",
+    "relationship_notes.md",
+  ],
+};
+
+/**
+ * Create a file store instance.
+ */
+export function createFileStore(dataDir: string): FileStore {
+  return new FileStore(dataDir);
+}

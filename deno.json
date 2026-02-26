@@ -1,0 +1,32 @@
+{
+  "name": "@entity/core",
+  "version": "0.1.0",
+  "exports": "./src/mod.ts",
+  "tasks": {
+    "dev": "deno run --watch -A --unstable-cron src/mod.ts",
+    "start": "deno run -A --unstable-cron src/mod.ts",
+    "stop": "pkill -INT -f 'deno.*entity-core' || true"
+  },
+  "imports": {
+    "@std/path": "jsr:@std/path@^1",
+    "@std/async": "jsr:@std/async@^1",
+    "@std/fs": "jsr:@std/fs@^1",
+    "@db/sqlite": "jsr:@db/sqlite@^0.12",
+    "@xenova/transformers": "npm:@huggingface/transformers@3.3.1",
+    "@modelcontextprotocol/sdk": "npm:@modelcontextprotocol/sdk@^1",
+    "zod": "npm:zod"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}

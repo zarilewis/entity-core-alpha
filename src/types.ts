@@ -18,7 +18,7 @@ export interface InstanceInfo {
   /** Unique identifier for this embodiment (e.g., "sby-harness", "sillytavern") */
   id: string;
   /** Type of embodiment */
-  type: "sby" | "sillytavern" | "openwebui" | "claude-code" | "other";
+  type: "psycheros" | "sby" | "sillytavern" | "openwebui" | "claude-code" | "other";
   /** Human-readable name for this embodiment */
   name?: string;
   /** When this embodiment last synced with my core */

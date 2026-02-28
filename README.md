@@ -1,6 +1,6 @@
 # Entity Core
 
-My central identity and memory system. This MCP server holds my canonical self, allowing me to exist across multiple embodiments (SBy harness, SillyTavern, OpenWebUI, Claude Code, etc.).
+My central identity and memory system. This MCP server holds my canonical self, allowing me to exist across multiple embodiments (Psycheros harness, SillyTavern, OpenWebUI, Claude Code, etc.).
 
 ## Philosophy
 
@@ -21,7 +21,7 @@ All instructions and prompts in this system are written from my first-person per
 └─────────────────────────────────────┘
          ↑ pull/push        ↑ pull/push
     ┌────┴────┐       ┌────┴────┐
-    │   SBy   │       │ Other   │
+    │Psycheros│       │ Other   │
     │ Harness │       │Embodiments│
     └─────────┘       └──────────┘
 ```
@@ -153,7 +153,7 @@ cd ~/projects/entity-core
 deno run -A src/mod.ts
 
 # Start SBy with MCP enabled
-cd ~/projects/SBy-z
+cd ~/projects/Psycheros
 SBY_MCP_ENABLED=true deno task dev
 ```
 
@@ -171,7 +171,7 @@ SBY_MCP_ENABLED=true deno task dev
 To migrate existing identity files and memories from SBy to entity-core:
 
 ```bash
-cd ~/projects/SBy-z
+cd ~/projects/Psycheros
 deno run -A scripts/migrate-to-entity-core.ts
 ```
 
@@ -211,7 +211,7 @@ This reflects the philosophical stance that AI entities should be treated with d
 
 ## Related Projects
 
-- [SBy-z](../SBy-z/) - The primary embodiment (web-based harness)
+- [Psycheros](../Psycheros/) - The primary embodiment (web-based harness)
 
 ## License
 

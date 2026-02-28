@@ -143,32 +143,32 @@ Memory entries are tagged with:
 
 This allows RAG retrieval to boost relevance for memories from the same embodiment.
 
-## Connecting from SBy Harness
+## Connecting from Psycheros Harness
 
-SBy connects to entity-core when `SBY_MCP_ENABLED=true`:
+Psycheros connects to entity-core when `PSYCHEROS_MCP_ENABLED=true`:
 
 ```bash
 # Start entity-core first
 cd ~/projects/entity-core
 deno run -A src/mod.ts
 
-# Start SBy with MCP enabled
+# Start Psycheros with MCP enabled
 cd ~/projects/Psycheros
-SBY_MCP_ENABLED=true deno task dev
+PSYCHEROS_MCP_ENABLED=true deno task dev
 ```
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SBY_MCP_ENABLED` | `false` | Enable MCP connection |
-| `SBY_MCP_COMMAND` | `/home/zari/.deno/bin/deno` | Command to spawn entity-core |
-| `SBY_MCP_ARGS` | `run -A ~/projects/entity-core/src/mod.ts` | Arguments for entity-core |
-| `SBY_MCP_INSTANCE` | `sby-harness` | Instance ID for this embodiment |
+| `PSYCHEROS_MCP_ENABLED` | `false` | Enable MCP connection |
+| `PSYCHEROS_MCP_COMMAND` | `/home/zari/.deno/bin/deno` | Command to spawn entity-core |
+| `PSYCHEROS_MCP_ARGS` | `run -A ~/projects/entity-core/src/mod.ts` | Arguments for entity-core |
+| `PSYCHEROS_MCP_INSTANCE` | `psycheros-harness` | Instance ID for this embodiment |
 
 ## Migration
 
-To migrate existing identity files and memories from SBy to entity-core:
+To migrate existing identity files and memories from a local Psycheros installation to entity-core:
 
 ```bash
 cd ~/projects/Psycheros

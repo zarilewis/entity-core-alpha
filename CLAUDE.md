@@ -31,7 +31,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/server.ts` | MCP server implementation |
 | `src/types.ts` | Type definitions (InstanceInfo, MemoryEntry, etc.) |
 | `src/tools/mod.ts` | Tool registry |
-| `src/tools/identity.ts` | Identity file tools (get_all, write) |
+| `src/tools/identity.ts` | Identity file tools (get_all, write, append, prepend, update_section) |
 | `src/tools/memory.ts` | Memory tools (create, search, list) |
 | `src/tools/sync.ts` | Sync tools (pull, push, status) |
 | `src/storage/file-store.ts` | File-based storage implementation |
@@ -86,7 +86,10 @@ All code, comments, and documentation are written from the entity's first-person
 
 ### Identity Tools
 - `identity_get_all` - Retrieve all my identity files (self, user, relationship)
-- `identity_write` - Update one of my identity files
+- `identity_write` - Replace one of my identity files entirely
+- `identity_append` - Append content to an identity file (before closing XML tag)
+- `identity_prepend` - Prepend content to an identity file (after opening XML tag)
+- `identity_update_section` - Update a specific markdown section within a file
 
 ### Memory Tools
 - `memory_create` - Create a new memory entry with instance tagging

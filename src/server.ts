@@ -14,6 +14,9 @@ import {
   syncTools,
   createIdentityGetAllHandler,
   createIdentityWriteHandler,
+  createIdentityAppendHandler,
+  createIdentityPrependHandler,
+  createIdentityUpdateSectionHandler,
   createMemoryCreateHandler,
   createMemorySearchHandler,
   createMemoryListHandler,
@@ -72,6 +75,82 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createIdentityWriteHandler(store);
       const result = await handler({ category, filename, content, instanceId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_append",
+    identityTools["identity/append"].description,
+    {
+      category: identityTools["identity/append"].inputSchema.shape.category,
+      filename: identityTools["identity/append"].inputSchema.shape.filename,
+      content: identityTools["identity/append"].inputSchema.shape.content,
+      reason: identityTools["identity/append"].inputSchema.shape.reason,
+      instanceId: identityTools["identity/append"].inputSchema.shape.instanceId,
+    },
+    async ({ category, filename, content, reason, instanceId }) => {
+      await store.initialize();
+      const handler = createIdentityAppendHandler(store);
+      const result = await handler({ category, filename, content, reason, instanceId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_prepend",
+    identityTools["identity/prepend"].description,
+    {
+      category: identityTools["identity/prepend"].inputSchema.shape.category,
+      filename: identityTools["identity/prepend"].inputSchema.shape.filename,
+      content: identityTools["identity/prepend"].inputSchema.shape.content,
+      reason: identityTools["identity/prepend"].inputSchema.shape.reason,
+      instanceId: identityTools["identity/prepend"].inputSchema.shape.instanceId,
+    },
+    async ({ category, filename, content, reason, instanceId }) => {
+      await store.initialize();
+      const handler = createIdentityPrependHandler(store);
+      const result = await handler({ category, filename, content, reason, instanceId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_update_section",
+    identityTools["identity/update_section"].description,
+    {
+      category: identityTools["identity/update_section"].inputSchema.shape.category,
+      filename: identityTools["identity/update_section"].inputSchema.shape.filename,
+      section: identityTools["identity/update_section"].inputSchema.shape.section,
+      content: identityTools["identity/update_section"].inputSchema.shape.content,
+      reason: identityTools["identity/update_section"].inputSchema.shape.reason,
+      instanceId: identityTools["identity/update_section"].inputSchema.shape.instanceId,
+    },
+    async ({ category, filename, section, content, reason, instanceId }) => {
+      await store.initialize();
+      const handler = createIdentityUpdateSectionHandler(store);
+      const result = await handler({ category, filename, section, content, reason, instanceId });
       return {
         content: [
           {

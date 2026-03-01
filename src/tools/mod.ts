@@ -8,9 +8,16 @@ export {
   identityTools,
   createIdentityGetAllHandler,
   createIdentityWriteHandler,
+  createIdentityAppendHandler,
+  createIdentityPrependHandler,
+  createIdentityUpdateSectionHandler,
   IdentityGetAllSchema,
   IdentityWriteSchema,
+  IdentityAppendSchema,
+  IdentityPrependSchema,
+  IdentityUpdateSectionSchema,
   type IdentityGetAllOutput,
+  type IdentityOperationOutput,
   type IdentityWriteOutput,
 } from "./identity.ts";
 

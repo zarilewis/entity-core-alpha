@@ -12,7 +12,7 @@ import type { IdentityFile } from "../types.ts";
 /**
  * Schema for identity category.
  */
-const IdentityCategorySchema = z.enum(["self", "user", "relationship"]);
+const IdentityCategorySchema = z.enum(["self", "user", "relationship", "custom"]);
 
 /**
  * Input schema for identity/get_all tool.
@@ -64,12 +64,20 @@ export const IdentityUpdateSectionSchema = z.object({
 });
 
 /**
+ * Input schema for identity_delete_custom tool.
+ */
+export const IdentityDeleteCustomSchema = z.object({
+  filename: z.string().min(1),
+});
+
+/**
  * Output type for identity/get_all tool.
  */
 export interface IdentityGetAllOutput {
   self: Array<{ filename: string; content: string }>;
   user: Array<{ filename: string; content: string }>;
   relationship: Array<{ filename: string; content: string }>;
+  custom: Array<{ filename: string; content: string }>;
 }
 
 /**
@@ -217,6 +225,10 @@ export function createIdentityGetAllHandler(store: FileStore) {
       self: identity.self.map((f) => ({ filename: f.filename, content: f.content })),
       user: identity.user.map((f) => ({ filename: f.filename, content: f.content })),
       relationship: identity.relationship.map((f) => ({
+        filename: f.filename,
+        content: f.content,
+      })),
+      custom: identity.custom.map((f) => ({
         filename: f.filename,
         content: f.content,
       })),
@@ -380,6 +392,39 @@ export function createIdentityUpdateSectionHandler(store: FileStore) {
   };
 }
 
+/**
+ * Create the identity_delete_custom tool handler.
+ * Only custom files can be deleted.
+ */
+export function createIdentityDeleteCustomHandler(store: FileStore) {
+  return async (input: z.infer<typeof IdentityDeleteCustomSchema>): Promise<IdentityOperationOutput> => {
+    const { filename } = input;
+
+    if (!filename.endsWith(".md")) {
+      return { success: false, message: "Filename must end with .md" };
+    }
+
+    // Validate filename - no path traversal
+    if (filename.includes("/") || filename.includes("\\") || filename.includes("..")) {
+      return { success: false, message: "Invalid filename: path separators not allowed" };
+    }
+
+    const deleted = await store.deleteIdentityFile("custom", filename);
+
+    if (!deleted) {
+      return {
+        success: false,
+        message: `Custom file ${filename} not found`,
+      };
+    }
+
+    return {
+      success: true,
+      message: `I have deleted my custom file: ${filename}`,
+    };
+  };
+}
+
 // Legacy type alias for backward compatibility
 export type IdentityWriteOutput = IdentityOperationOutput;
 
@@ -389,7 +434,7 @@ export type IdentityWriteOutput = IdentityOperationOutput;
 export const identityTools = {
   "identity/get_all": {
     description:
-      "Get all my identity files (self, user, relationship). These define who I am, who I'm talking to, and our relationship.",
+      "Get all my identity files (self, user, relationship, custom). These define who I am, who I'm talking to, and our relationship.",
     inputSchema: IdentityGetAllSchema,
   },
   "identity/write": {
@@ -411,5 +456,10 @@ export const identityTools = {
     description:
       "Update a specific section in one of my identity files. The section is identified by its markdown heading.",
     inputSchema: IdentityUpdateSectionSchema,
+  },
+  "identity/delete_custom": {
+    description:
+      "Delete a custom identity file. Only custom files can be deleted; predefined files in other categories cannot.",
+    inputSchema: IdentityDeleteCustomSchema,
   },
 };

@@ -27,6 +27,7 @@ export class FileStore {
       join(this.dataDir, "self"),
       join(this.dataDir, "user"),
       join(this.dataDir, "relationship"),
+      join(this.dataDir, "custom"),
       join(this.dataDir, "memories", "daily"),
       join(this.dataDir, "memories", "weekly"),
       join(this.dataDir, "memories", "monthly"),
@@ -45,7 +46,7 @@ export class FileStore {
   /**
    * Read all identity files from a category.
    */
-  async readIdentityCategory(category: "self" | "user" | "relationship"): Promise<IdentityFile[]> {
+  async readIdentityCategory(category: "self" | "user" | "relationship" | "custom"): Promise<IdentityFile[]> {
     const dir = join(this.dataDir, category);
     const files: IdentityFile[] = [];
 
@@ -72,16 +73,20 @@ export class FileStore {
       }
     }
 
-    // Sort by predefined order
-    const order = IDENTITY_FILE_ORDER[category];
-    files.sort((a, b) => {
-      const aIndex = order.indexOf(a.filename);
-      const bIndex = order.indexOf(b.filename);
-      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-      if (aIndex !== -1) return -1;
-      if (bIndex !== -1) return 1;
-      return a.filename.localeCompare(b.filename);
-    });
+    // Custom files are sorted alphabetically; others use predefined order
+    if (category === "custom") {
+      files.sort((a, b) => a.filename.localeCompare(b.filename));
+    } else {
+      const order = IDENTITY_FILE_ORDER[category as "self" | "user" | "relationship"];
+      files.sort((a, b) => {
+        const aIndex = order.indexOf(a.filename);
+        const bIndex = order.indexOf(b.filename);
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        return a.filename.localeCompare(b.filename);
+      });
+    }
 
     return files;
   }
@@ -90,13 +95,14 @@ export class FileStore {
    * Read all identity files.
    */
   async readAllIdentity(): Promise<IdentityContent> {
-    const [self, user, relationship] = await Promise.all([
+    const [self, user, relationship, custom] = await Promise.all([
       this.readIdentityCategory("self"),
       this.readIdentityCategory("user"),
       this.readIdentityCategory("relationship"),
+      this.readIdentityCategory("custom"),
     ]);
 
-    return { self, user, relationship };
+    return { self, user, relationship, custom };
   }
 
   /**
@@ -107,6 +113,28 @@ export class FileStore {
     await ensureDir(dir);
     const filePath = join(dir, file.filename);
     await Deno.writeTextFile(filePath, file.content);
+  }
+
+  /**
+   * Delete a custom identity file.
+   * Only custom files can be deleted; predefined files in other categories cannot.
+   */
+  async deleteIdentityFile(category: "custom", filename: string): Promise<boolean> {
+    if (category !== "custom") {
+      throw new Error("Only custom files can be deleted");
+    }
+
+    const filePath = join(this.dataDir, category, filename);
+
+    try {
+      await Deno.remove(filePath);
+      return true;
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   // ===== Memory Files =====
@@ -226,6 +254,7 @@ export class FileStore {
 
 /**
  * File order for identity files.
+ * Custom files have no predefined order (sorted alphabetically instead).
  */
 const IDENTITY_FILE_ORDER: Record<"self" | "user" | "relationship", string[]> = {
   self: [

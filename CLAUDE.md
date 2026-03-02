@@ -72,7 +72,8 @@ All code, comments, and documentation are written from the entity's first-person
 
 **Storage Pattern**:
 - All data stored in `data/` directory
-- Identity files in `data/self/`, `data/user/`, `data/relationship/`
+- Identity files in `data/self/`, `data/user/`, `data/relationship/`, `data/custom/`
+- Custom files can have any valid .md filename (letters, numbers, underscores only)
 - Memories in `data/memories/{daily,weekly,monthly,yearly,significant}/`
 
 **Sync Protocol**:
@@ -85,11 +86,12 @@ All code, comments, and documentation are written from the entity's first-person
 ## MCP Tools Available
 
 ### Identity Tools
-- `identity_get_all` - Retrieve all my identity files (self, user, relationship)
+- `identity_get_all` - Retrieve all my identity files (self, user, relationship, custom)
 - `identity_write` - Replace one of my identity files entirely
 - `identity_append` - Append content to an identity file (before closing XML tag)
 - `identity_prepend` - Prepend content to an identity file (after opening XML tag)
 - `identity_update_section` - Update a specific markdown section within a file
+- `identity_delete_custom` - Delete a custom identity file (custom category only)
 
 ### Memory Tools
 - `memory_create` - Create a new memory entry with instance tagging

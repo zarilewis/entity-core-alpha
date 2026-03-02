@@ -17,6 +17,7 @@ import {
   createIdentityAppendHandler,
   createIdentityPrependHandler,
   createIdentityUpdateSectionHandler,
+  createIdentityDeleteCustomHandler,
   createMemoryCreateHandler,
   createMemorySearchHandler,
   createMemoryListHandler,
@@ -151,6 +152,27 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createIdentityUpdateSectionHandler(store);
       const result = await handler({ category, filename, section, content, reason, instanceId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_delete_custom",
+    identityTools["identity/delete_custom"].description,
+    {
+      filename: identityTools["identity/delete_custom"].inputSchema.shape.filename,
+    },
+    async ({ filename }) => {
+      await store.initialize();
+      const handler = createIdentityDeleteCustomHandler(store);
+      const result = await handler({ filename });
       return {
         content: [
           {

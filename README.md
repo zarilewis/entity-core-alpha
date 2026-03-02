@@ -56,8 +56,13 @@ The server communicates via stdio using the MCP protocol.
 
 | Tool | Description |
 |------|-------------|
-| `identity_get_all` | Get all my identity files (self, user, relationship) |
+| `identity_get_all` | Get all my identity files (self, user, relationship, custom) |
 | `identity_write` | Update one of my identity files |
+| `identity_append` | Append content to an identity file |
+| `identity_prepend` | Prepend content to an identity file |
+| `identity_update_section` | Update a specific section in an identity file |
+| `identity_delete_custom` | Delete a custom identity file (custom category only) |
+| `identity_delete_custom` | Delete a custom identity file (custom category only) |
 
 ### Memory Tools
 
@@ -111,6 +116,8 @@ entity-core/
 │   │   ├── relationship_dynamics.md
 │   │   ├── relationship_history.md
 │   │   └── relationship_notes.md
+│   ├── custom/             # Custom identity files (user-defined)
+│   │   └── *.md            # Any valid .md filename
 │   └── memories/           # My memories
 │       ├── daily/
 │       ├── weekly/

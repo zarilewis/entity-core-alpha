@@ -32,7 +32,7 @@ export interface InstanceInfo {
  */
 export interface IdentityFile {
   /** Category of identity file */
-  category: "self" | "user" | "relationship";
+  category: "self" | "user" | "relationship" | "custom";
   /** Filename (e.g., "my_identity.md", "user_preferences.md") */
   filename: string;
   /** Content of the file */
@@ -52,6 +52,7 @@ export interface IdentityContent {
   self: IdentityFile[];
   user: IdentityFile[];
   relationship: IdentityFile[];
+  custom: IdentityFile[];
 }
 
 /**

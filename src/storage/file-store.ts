@@ -20,6 +20,13 @@ export class FileStore {
   }
 
   /**
+   * Get the data directory path.
+   */
+  get dataDirectory(): string {
+    return this.dataDir;
+  }
+
+  /**
    * Initialize the storage directories.
    */
   async initialize(): Promise<void> {

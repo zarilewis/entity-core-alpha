@@ -15,6 +15,10 @@ import type {
   MemoryEntry,
 } from "../types.ts";
 import { resolveIdentityConflict, resolveMemoryConflict } from "../sync/mod.ts";
+import {
+  createFullSnapshot,
+  cleanupOldSnapshots,
+} from "../snapshot/mod.ts";
 
 /**
  * Input schema for sync/pull tool.
@@ -128,6 +132,19 @@ export function createSyncPushHandler(store: FileStore) {
       ...instance,
       lastSync: new Date().toISOString(),
     } as InstanceInfo);
+
+    // Create snapshot before applying identity changes
+    if (identityChanges.length > 0) {
+      try {
+        await createFullSnapshot(store, "scheduled", "entity-core");
+        // Cleanup old snapshots
+        const retentionDays = parseInt(Deno.env.get("ENTITY_CORE_SNAPSHOT_RETENTION_DAYS") || "30");
+        await cleanupOldSnapshots(store, retentionDays);
+      } catch (error) {
+        console.error("[Sync] Snapshot creation failed:", error);
+        // Continue with sync even if snapshot fails
+      }
+    }
 
     const conflicts: SyncResponse["conflicts"] = [];
 

@@ -44,3 +44,19 @@ export {
   SyncPullSchema,
   SyncPushSchema,
 } from "./sync.ts";
+
+export {
+  snapshotTools,
+  createSnapshotCreateHandler,
+  createSnapshotListHandler,
+  createSnapshotRestoreHandler,
+  createSnapshotGetHandler,
+  SnapshotCreateSchema,
+  SnapshotListSchema,
+  SnapshotGetSchema,
+  SnapshotRestoreSchema,
+  type SnapshotCreateOutput,
+  type SnapshotListOutput,
+  type SnapshotGetOutput,
+  type SnapshotRestoreOutput,
+} from "./snapshot.ts";

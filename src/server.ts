@@ -12,6 +12,7 @@ import {
   identityTools,
   memoryTools,
   syncTools,
+  snapshotTools,
   createIdentityGetAllHandler,
   createIdentityWriteHandler,
   createIdentityAppendHandler,
@@ -24,6 +25,10 @@ import {
   createSyncPullHandler,
   createSyncPushHandler,
   createSyncStatusHandler,
+  createSnapshotCreateHandler,
+  createSnapshotListHandler,
+  createSnapshotRestoreHandler,
+  createSnapshotGetHandler,
 } from "./tools/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
@@ -327,6 +332,90 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     async () => {
       const handler = createSyncStatusHandler();
       const result = await handler();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      }
+    }
+  );
+
+  // Register snapshot tools
+  server.tool(
+    "snapshot_create",
+    snapshotTools["snapshot/create"].description,
+    {},
+    async () => {
+      await store.initialize();
+      const handler = createSnapshotCreateHandler(store);
+      const result = await handler();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "snapshot_list",
+    snapshotTools["snapshot/list"].description,
+    {
+      category: snapshotTools["snapshot/list"].inputSchema.shape.category,
+      filename: snapshotTools["snapshot/list"].inputSchema.shape.filename,
+    },
+    async ({ category, filename }) => {
+      await store.initialize();
+      const handler = createSnapshotListHandler(store);
+      const result = await handler({ category, filename });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "snapshot_restore",
+    snapshotTools["snapshot/restore"].description,
+    {
+      snapshotId: snapshotTools["snapshot/restore"].inputSchema.shape.snapshotId,
+    },
+    async ({ snapshotId }) => {
+      await store.initialize();
+      const handler = createSnapshotRestoreHandler(store);
+      const result = await handler({ snapshotId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "snapshot_get",
+    snapshotTools["snapshot/get"].description,
+    {
+      snapshotId: snapshotTools["snapshot/get"].inputSchema.shape.snapshotId,
+    },
+    async ({ snapshotId }) => {
+      await store.initialize();
+      const handler = createSnapshotGetHandler(store);
+      const result = await handler({ snapshotId });
       return {
         content: [
           {

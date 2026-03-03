@@ -49,6 +49,7 @@ The server communicates via stdio using the MCP protocol.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENTITY_CORE_DATA_DIR` | `./data` | Directory for storing identity and memory files |
+| `ENTITY_CORE_SNAPSHOT_RETENTION_DAYS` | `30` | Days to retain snapshots before cleanup |
 
 ## MCP Tools
 
@@ -79,6 +80,15 @@ The server communicates via stdio using the MCP protocol.
 | `sync_pull` | Pull all identity and memories from my core |
 | `sync_push` | Push changes from an embodiment to my core |
 | `sync_status` | Check sync status and connected embodiments |
+
+### Snapshot Tools
+
+| Tool | Description |
+|------|-------------|
+| `snapshot_create` | Create a snapshot of all my identity files |
+| `snapshot_list` | List available snapshots with metadata |
+| `snapshot_get` | Get the content of a specific snapshot |
+| `snapshot_restore` | Restore identity files from a snapshot |
 
 ## Directory Structure
 
@@ -118,6 +128,11 @@ entity-core/
 │   │   └── relationship_notes.md
 │   ├── custom/             # Custom identity files (user-defined)
 │   │   └── *.md            # Any valid .md filename
+│   ├── .snapshots/         # Identity file snapshots (backups)
+│   │   ├── self/
+│   │   ├── user/
+│   │   ├── relationship/
+│   │   └── custom/
 │   └── memories/           # My memories
 │       ├── daily/
 │       ├── weekly/
@@ -205,6 +220,26 @@ daily → weekly → monthly → yearly
 ### Instance Relevance
 
 When searching memories, results from the same embodiment are boosted (default: +0.1 to similarity score). This makes memories contextually relevant to the current interface.
+
+## Snapshot System
+
+Identity file snapshots are automatic backups created before changes:
+
+- **Automatic**: Created before any identity file replacement (via `identity_write` or `sync_push`)
+- **Scheduled**: Created during scheduled sync operations
+- **Manual**: Can be created on-demand via the `snapshot_create` tool or through the Psycheros UI
+
+Snapshots are stored in `data/.snapshots/` organized by category (self, user, relationship, custom). Each snapshot includes metadata headers with timestamp, reason, and source.
+
+### Retention
+
+Snapshots are automatically cleaned up after the configured retention period (default: 30 days). Set `ENTITY_CORE_SNAPSHOT_RETENTION_DAYS` to adjust.
+
+### Restoring
+
+Snapshots can be restored via:
+- The `snapshot_restore` MCP tool
+- The Snapshots tab in Psycheros Settings → Core Prompts
 
 ## First-Person Principle
 

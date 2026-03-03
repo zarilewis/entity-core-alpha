@@ -34,6 +34,8 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/identity.ts` | Identity file tools (get_all, write, append, prepend, update_section) |
 | `src/tools/memory.ts` | Memory tools (create, search, list) |
 | `src/tools/sync.ts` | Sync tools (pull, push, status) |
+| `src/tools/snapshot.ts` | Snapshot tools (create, list, get, restore) |
+| `src/snapshot/mod.ts` | Snapshot storage and management |
 | `src/storage/file-store.ts` | File-based storage implementation |
 | `src/sync/versioning.ts` | Vector clocks for distributed versioning |
 | `src/sync/conflict.ts` | Conflict resolution strategies |
@@ -103,6 +105,12 @@ All code, comments, and documentation are written from the entity's first-person
 - `sync_push` - Push changes from an embodiment to my core
 - `sync_status` - Check sync status and connected embodiments
 
+### Snapshot Tools
+- `snapshot_create` - Create a snapshot of all my identity files
+- `snapshot_list` - List available snapshots with metadata
+- `snapshot_get` - Get the content of a specific snapshot
+- `snapshot_restore` - Restore identity files from a snapshot
+
 ## Instance Types
 
 When an embodiment connects, it identifies itself with an instance type:
@@ -132,4 +140,4 @@ daily → weekly → monthly → yearly
 - [Psycheros](../Psycheros/) - The primary embodiment (web-based harness)
 
 # currentDate
-Today's date is 2026-02-28.
+Today's date is 2026-03-02.

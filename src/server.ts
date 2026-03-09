@@ -8,11 +8,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { FileStore } from "./storage/mod.ts";
+import { GraphStore } from "./graph/mod.ts";
 import {
   identityTools,
   memoryTools,
   syncTools,
   snapshotTools,
+  graphTools,
   createIdentityGetAllHandler,
   createIdentityWriteHandler,
   createIdentityAppendHandler,
@@ -29,6 +31,22 @@ import {
   createSnapshotListHandler,
   createSnapshotRestoreHandler,
   createSnapshotGetHandler,
+  createGraphNodeCreateHandler,
+  createGraphNodeGetHandler,
+  createGraphNodeUpdateHandler,
+  createGraphNodeDeleteHandler,
+  createGraphNodeSearchHandler,
+  createGraphNodeListHandler,
+  createGraphEdgeCreateHandler,
+  createGraphEdgeGetHandler,
+  createGraphEdgeUpdateHandler,
+  createGraphEdgeDeleteHandler,
+  createGraphTraverseHandler,
+  createGraphSubgraphHandler,
+  createGraphConnectMemoryHandler,
+  createGraphGetMemoryNodesHandler,
+  createGraphInsightsHandler,
+  createGraphStatsHandler,
 } from "./tools/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
@@ -41,6 +59,9 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
 
   // Initialize storage
   const store = new FileStore(fullConfig.dataDir);
+
+  // Initialize graph store
+  const graphStore = new GraphStore(fullConfig.dataDir);
 
   // Create MCP server
   const server = new McpServer({
@@ -423,6 +444,317 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
             text: JSON.stringify(result, null, 2),
           },
         ],
+      };
+    }
+  );
+
+  // Register graph tools
+  server.tool(
+    "graph_node_create",
+    graphTools["graph/node_create"].description,
+    {
+      type: graphTools["graph/node_create"].inputSchema.shape.type,
+      label: graphTools["graph/node_create"].inputSchema.shape.label,
+      description: graphTools["graph/node_create"].inputSchema.shape.description,
+      perspective: graphTools["graph/node_create"].inputSchema.shape.perspective,
+      properties: graphTools["graph/node_create"].inputSchema.shape.properties,
+      instanceId: graphTools["graph/node_create"].inputSchema.shape.instanceId,
+      confidence: graphTools["graph/node_create"].inputSchema.shape.confidence,
+      sourceMemoryId: graphTools["graph/node_create"].inputSchema.shape.sourceMemoryId,
+      firstLearnedAt: graphTools["graph/node_create"].inputSchema.shape.firstLearnedAt,
+      embedding: graphTools["graph/node_create"].inputSchema.shape.embedding,
+    },
+    async ({ type, label, description, perspective, properties, instanceId, confidence, sourceMemoryId, firstLearnedAt, embedding }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeCreateHandler(graphStore);
+      const result = await handler({ type, label, description, perspective, properties, instanceId, confidence, sourceMemoryId, firstLearnedAt, embedding });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_node_get",
+    graphTools["graph/node_get"].description,
+    {
+      id: graphTools["graph/node_get"].inputSchema.shape.id,
+    },
+    async ({ id }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeGetHandler(graphStore);
+      const result = await handler({ id });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_node_update",
+    graphTools["graph/node_update"].description,
+    {
+      id: graphTools["graph/node_update"].inputSchema.shape.id,
+      label: graphTools["graph/node_update"].inputSchema.shape.label,
+      description: graphTools["graph/node_update"].inputSchema.shape.description,
+      perspective: graphTools["graph/node_update"].inputSchema.shape.perspective,
+      properties: graphTools["graph/node_update"].inputSchema.shape.properties,
+      confidence: graphTools["graph/node_update"].inputSchema.shape.confidence,
+      lastConfirmedAt: graphTools["graph/node_update"].inputSchema.shape.lastConfirmedAt,
+      instanceId: graphTools["graph/node_update"].inputSchema.shape.instanceId,
+      embedding: graphTools["graph/node_update"].inputSchema.shape.embedding,
+    },
+    async ({ id, label, description, perspective, properties, confidence, lastConfirmedAt, instanceId, embedding }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeUpdateHandler(graphStore);
+      const result = await handler({ id, label, description, perspective, properties, confidence, lastConfirmedAt, instanceId, embedding });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_node_delete",
+    graphTools["graph/node_delete"].description,
+    {
+      id: graphTools["graph/node_delete"].inputSchema.shape.id,
+      permanent: graphTools["graph/node_delete"].inputSchema.shape.permanent,
+    },
+    async ({ id, permanent }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeDeleteHandler(graphStore);
+      const result = await handler({ id, permanent });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_node_search",
+    graphTools["graph/node_search"].description,
+    {
+      query: graphTools["graph/node_search"].inputSchema.shape.query,
+      queryEmbedding: graphTools["graph/node_search"].inputSchema.shape.queryEmbedding,
+      type: graphTools["graph/node_search"].inputSchema.shape.type,
+      perspective: graphTools["graph/node_search"].inputSchema.shape.perspective,
+      minScore: graphTools["graph/node_search"].inputSchema.shape.minScore,
+      limit: graphTools["graph/node_search"].inputSchema.shape.limit,
+    },
+    async ({ query, queryEmbedding, type, perspective, minScore, limit }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeSearchHandler(graphStore);
+      const result = await handler({ query, queryEmbedding, type, perspective, minScore, limit });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_node_list",
+    graphTools["graph/node_list"].description,
+    {
+      type: graphTools["graph/node_list"].inputSchema.shape.type,
+      perspective: graphTools["graph/node_list"].inputSchema.shape.perspective,
+      includeDeleted: graphTools["graph/node_list"].inputSchema.shape.includeDeleted,
+      limit: graphTools["graph/node_list"].inputSchema.shape.limit,
+      offset: graphTools["graph/node_list"].inputSchema.shape.offset,
+    },
+    async ({ type, perspective, includeDeleted, limit, offset }) => {
+      await graphStore.initialize();
+      const handler = createGraphNodeListHandler(graphStore);
+      const result = await handler({ type, perspective, includeDeleted, limit, offset });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_edge_create",
+    graphTools["graph/edge_create"].description,
+    {
+      fromId: graphTools["graph/edge_create"].inputSchema.shape.fromId,
+      toId: graphTools["graph/edge_create"].inputSchema.shape.toId,
+      type: graphTools["graph/edge_create"].inputSchema.shape.type,
+      customType: graphTools["graph/edge_create"].inputSchema.shape.customType,
+      perspective: graphTools["graph/edge_create"].inputSchema.shape.perspective,
+      properties: graphTools["graph/edge_create"].inputSchema.shape.properties,
+      weight: graphTools["graph/edge_create"].inputSchema.shape.weight,
+      evidence: graphTools["graph/edge_create"].inputSchema.shape.evidence,
+      occurredAt: graphTools["graph/edge_create"].inputSchema.shape.occurredAt,
+      validUntil: graphTools["graph/edge_create"].inputSchema.shape.validUntil,
+      instanceId: graphTools["graph/edge_create"].inputSchema.shape.instanceId,
+    },
+    async ({ fromId, toId, type, customType, perspective, properties, weight, evidence, occurredAt, validUntil, instanceId }) => {
+      await graphStore.initialize();
+      const handler = createGraphEdgeCreateHandler(graphStore);
+      const result = await handler({ fromId, toId, type, customType, perspective, properties, weight, evidence, occurredAt, validUntil, instanceId });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_edge_get",
+    graphTools["graph/edge_get"].description,
+    {
+      id: graphTools["graph/edge_get"].inputSchema.shape.id,
+      fromId: graphTools["graph/edge_get"].inputSchema.shape.fromId,
+      toId: graphTools["graph/edge_get"].inputSchema.shape.toId,
+      type: graphTools["graph/edge_get"].inputSchema.shape.type,
+      perspective: graphTools["graph/edge_get"].inputSchema.shape.perspective,
+      includeDeleted: graphTools["graph/edge_get"].inputSchema.shape.includeDeleted,
+      onlyValid: graphTools["graph/edge_get"].inputSchema.shape.onlyValid,
+    },
+    async ({ id, fromId, toId, type, perspective, includeDeleted, onlyValid }) => {
+      await graphStore.initialize();
+      const handler = createGraphEdgeGetHandler(graphStore);
+      const result = await handler({ id, fromId, toId, type, perspective, includeDeleted, onlyValid });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_edge_update",
+    graphTools["graph/edge_update"].description,
+    {
+      id: graphTools["graph/edge_update"].inputSchema.shape.id,
+      type: graphTools["graph/edge_update"].inputSchema.shape.type,
+      customType: graphTools["graph/edge_update"].inputSchema.shape.customType,
+      perspective: graphTools["graph/edge_update"].inputSchema.shape.perspective,
+      properties: graphTools["graph/edge_update"].inputSchema.shape.properties,
+      weight: graphTools["graph/edge_update"].inputSchema.shape.weight,
+      evidence: graphTools["graph/edge_update"].inputSchema.shape.evidence,
+      validUntil: graphTools["graph/edge_update"].inputSchema.shape.validUntil,
+      lastConfirmedAt: graphTools["graph/edge_update"].inputSchema.shape.lastConfirmedAt,
+      instanceId: graphTools["graph/edge_update"].inputSchema.shape.instanceId,
+    },
+    async ({ id, type, customType, perspective, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId }) => {
+      await graphStore.initialize();
+      const handler = createGraphEdgeUpdateHandler(graphStore);
+      const result = await handler({ id, type, customType, perspective, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_edge_delete",
+    graphTools["graph/edge_delete"].description,
+    {
+      id: graphTools["graph/edge_delete"].inputSchema.shape.id,
+    },
+    async ({ id }) => {
+      await graphStore.initialize();
+      const handler = createGraphEdgeDeleteHandler(graphStore);
+      const result = await handler({ id });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_traverse",
+    graphTools["graph/traverse"].description,
+    {
+      startNodeId: graphTools["graph/traverse"].inputSchema.shape.startNodeId,
+      direction: graphTools["graph/traverse"].inputSchema.shape.direction,
+      maxDepth: graphTools["graph/traverse"].inputSchema.shape.maxDepth,
+      edgeTypes: graphTools["graph/traverse"].inputSchema.shape.edgeTypes,
+      limit: graphTools["graph/traverse"].inputSchema.shape.limit,
+    },
+    async ({ startNodeId, direction, maxDepth, edgeTypes, limit }) => {
+      await graphStore.initialize();
+      const handler = createGraphTraverseHandler(graphStore);
+      const result = await handler({ startNodeId, direction, maxDepth, edgeTypes, limit });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_subgraph",
+    graphTools["graph/subgraph"].description,
+    {
+      nodeId: graphTools["graph/subgraph"].inputSchema.shape.nodeId,
+      depth: graphTools["graph/subgraph"].inputSchema.shape.depth,
+    },
+    async ({ nodeId, depth }) => {
+      await graphStore.initialize();
+      const handler = createGraphSubgraphHandler(graphStore);
+      const result = await handler({ nodeId, depth });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_connect_memory",
+    graphTools["graph/connect_memory"].description,
+    {
+      memoryId: graphTools["graph/connect_memory"].inputSchema.shape.memoryId,
+      nodeIds: graphTools["graph/connect_memory"].inputSchema.shape.nodeIds,
+    },
+    async ({ memoryId, nodeIds }) => {
+      await graphStore.initialize();
+      const handler = createGraphConnectMemoryHandler(graphStore);
+      const result = await handler({ memoryId, nodeIds });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_get_memory_nodes",
+    graphTools["graph/get_memory_nodes"].description,
+    {
+      memoryId: graphTools["graph/get_memory_nodes"].inputSchema.shape.memoryId,
+    },
+    async ({ memoryId }) => {
+      await graphStore.initialize();
+      const handler = createGraphGetMemoryNodesHandler(graphStore);
+      const result = await handler({ memoryId });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_insights",
+    graphTools["graph/insights"].description,
+    {},
+    async () => {
+      await graphStore.initialize();
+      const handler = createGraphInsightsHandler(graphStore);
+      const result = await handler({});
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "graph_stats",
+    graphTools["graph/stats"].description,
+    {},
+    async () => {
+      await graphStore.initialize();
+      const handler = createGraphStatsHandler(graphStore);
+      const result = await handler({});
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };
     }
   );

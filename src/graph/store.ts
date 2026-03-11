@@ -28,7 +28,6 @@ import type {
   Subgraph,
   GraphInsight,
   GraphStats,
-  Perspective,
 } from "./types.ts";
 
 /**
@@ -112,7 +111,6 @@ export class GraphStore {
       type: input.type,
       label: input.label,
       description: input.description ?? "",
-      perspective: input.perspective ?? "shared",
       properties: input.properties ?? {},
       sourceInstance: input.sourceInstance,
       confidence: input.confidence ?? 0.5,
@@ -126,10 +124,10 @@ export class GraphStore {
 
     const stmt = this.db.prepare(`
       INSERT INTO graph_nodes (
-        id, type, label, description, perspective, properties,
+        id, type, label, description, properties,
         source_instance, confidence, source_memory_id,
         created_at, updated_at, first_learned_at, version, deleted
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -137,7 +135,6 @@ export class GraphStore {
       node.type,
       node.label,
       node.description,
-      node.perspective,
       JSON.stringify(node.properties),
       node.sourceInstance,
       node.confidence,
@@ -171,7 +168,6 @@ export class GraphStore {
         type: string;
         label: string;
         description: string;
-        perspective: string;
         properties: string;
         source_instance: string;
         confidence: number;
@@ -202,7 +198,6 @@ export class GraphStore {
       ...existing,
       label: input.label ?? existing.label,
       description: input.description ?? existing.description,
-      perspective: input.perspective ?? existing.perspective,
       properties: input.properties ?? existing.properties,
       confidence: input.confidence ?? existing.confidence,
       lastConfirmedAt: input.lastConfirmedAt ?? existing.lastConfirmedAt,
@@ -212,7 +207,7 @@ export class GraphStore {
 
     const stmt = this.db.prepare(`
       UPDATE graph_nodes SET
-        label = ?, description = ?, perspective = ?, properties = ?,
+        label = ?, description = ?, properties = ?,
         confidence = ?, last_confirmed_at = ?, updated_at = ?, version = ?
       WHERE id = ?
     `);
@@ -220,7 +215,6 @@ export class GraphStore {
     stmt.run(
       updated.label,
       updated.description,
-      updated.perspective,
       JSON.stringify(updated.properties),
       updated.confidence,
       updated.lastConfirmedAt ?? null,
@@ -293,11 +287,6 @@ export class GraphStore {
       params.push(options.type);
     }
 
-    if (options.perspective) {
-      conditions.push("n.perspective = ?");
-      params.push(options.perspective);
-    }
-
     // Vector search with join
     const serialized = serializeVector(queryEmbedding);
     const sql = `
@@ -318,7 +307,6 @@ export class GraphStore {
         type: string;
         label: string;
         description: string;
-        perspective: string;
         properties: string;
         source_instance: string;
         confidence: number;
@@ -353,11 +341,6 @@ export class GraphStore {
       params.push(options.type);
     }
 
-    if (options.perspective) {
-      conditions.push("perspective = ?");
-      params.push(options.perspective);
-    }
-
     if (options.query) {
       conditions.push("(label LIKE ? OR description LIKE ?)");
       const searchTerm = `%${options.query}%`;
@@ -379,7 +362,6 @@ export class GraphStore {
         type: string;
         label: string;
         description: string;
-        perspective: string;
         properties: string;
         source_instance: string;
         confidence: number;
@@ -419,11 +401,6 @@ export class GraphStore {
       params.push(options.type);
     }
 
-    if (options.perspective) {
-      conditions.push("perspective = ?");
-      params.push(options.perspective);
-    }
-
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const limit = options.limit ?? 100;
     const offset = options.offset ?? 0;
@@ -442,7 +419,6 @@ export class GraphStore {
         type: string;
         label: string;
         description: string;
-        perspective: string;
         properties: string;
         source_instance: string;
         confidence: number;
@@ -529,7 +505,6 @@ export class GraphStore {
       toId: input.toId,
       type: input.type,
       customType: input.customType,
-      perspective: input.perspective ?? "shared",
       properties: input.properties ?? {},
       weight: input.weight ?? 0.5,
       evidence: input.evidence,
@@ -543,9 +518,9 @@ export class GraphStore {
 
     const stmt = this.db.prepare(`
       INSERT INTO graph_edges (
-        id, from_id, to_id, type, custom_type, perspective, properties,
+        id, from_id, to_id, type, custom_type, properties,
         weight, evidence, created_at, updated_at, occurred_at, valid_until, version, deleted
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -554,7 +529,6 @@ export class GraphStore {
       edge.toId,
       edge.type,
       edge.customType ?? null,
-      edge.perspective,
       JSON.stringify(edge.properties),
       edge.weight,
       edge.evidence ?? null,
@@ -582,7 +556,6 @@ export class GraphStore {
         to_id: string;
         type: string;
         custom_type: string | null;
-        perspective: string;
         properties: string;
         weight: number;
         evidence: string | null;
@@ -627,11 +600,6 @@ export class GraphStore {
       params.push(options.type);
     }
 
-    if (options.perspective) {
-      conditions.push("perspective = ?");
-      params.push(options.perspective);
-    }
-
     if (options.onlyValid) {
       conditions.push("(valid_until IS NULL OR valid_until > ?)");
       params.push(new Date().toISOString());
@@ -653,7 +621,6 @@ export class GraphStore {
         to_id: string;
         type: string;
         custom_type: string | null;
-        perspective: string;
         properties: string;
         weight: number;
         evidence: string | null;
@@ -683,7 +650,6 @@ export class GraphStore {
       ...existing,
       type: input.type ?? existing.type,
       customType: input.customType ?? existing.customType,
-      perspective: input.perspective ?? existing.perspective,
       properties: input.properties ?? existing.properties,
       weight: input.weight ?? existing.weight,
       evidence: input.evidence ?? existing.evidence,
@@ -695,7 +661,7 @@ export class GraphStore {
 
     const stmt = this.db.prepare(`
       UPDATE graph_edges SET
-        type = ?, custom_type = ?, perspective = ?, properties = ?,
+        type = ?, custom_type = ?, properties = ?,
         weight = ?, evidence = ?, valid_until = ?, last_confirmed_at = ?, updated_at = ?, version = ?
       WHERE id = ?
     `);
@@ -703,7 +669,6 @@ export class GraphStore {
     stmt.run(
       updated.type,
       updated.customType ?? null,
-      updated.perspective,
       JSON.stringify(updated.properties),
       updated.weight,
       updated.evidence ?? null,
@@ -864,7 +829,6 @@ export class GraphStore {
         type: string;
         label: string;
         description: string;
-        perspective: string;
         properties: string;
         source_instance: string;
         confidence: number;
@@ -1002,16 +966,6 @@ export class GraphStore {
       edgesByType[row.type] = row.count;
     }
 
-    const nodesByPerspective: Record<Perspective, number> = { user: 0, entity: 0, shared: 0 };
-    const perspectiveRows = this.db
-      .prepare(
-        "SELECT perspective, COUNT(*) as count FROM graph_nodes WHERE deleted = 0 GROUP BY perspective"
-      )
-      .all<{ perspective: Perspective; count: number }>();
-    for (const row of perspectiveRows) {
-      nodesByPerspective[row.perspective] = row.count;
-    }
-
     const oldestNode = this.db
       .prepare(
         "SELECT MIN(created_at) as oldest FROM graph_nodes WHERE deleted = 0"
@@ -1029,7 +983,6 @@ export class GraphStore {
       totalEdges,
       nodesByType,
       edgesByType,
-      nodesByPerspective,
       oldestNode,
       newestNode,
     };
@@ -1069,7 +1022,6 @@ export class GraphStore {
       type: string;
       label: string;
       description: string;
-      perspective: string;
       properties: string;
       source_instance: string;
       confidence: number;
@@ -1087,7 +1039,6 @@ export class GraphStore {
       type: row.type,
       label: row.label,
       description: row.description,
-      perspective: row.perspective as Perspective,
       properties: this.parseJson(row.properties, {}),
       sourceInstance: row.source_instance,
       confidence: row.confidence,
@@ -1111,7 +1062,6 @@ export class GraphStore {
       to_id: string;
       type: string;
       custom_type: string | null;
-      perspective: string;
       properties: string;
       weight: number;
       evidence: string | null;
@@ -1130,7 +1080,6 @@ export class GraphStore {
       toId: row.to_id,
       type: row.type,
       customType: row.custom_type ?? undefined,
-      perspective: row.perspective as Perspective,
       properties: this.parseJson(row.properties, {}),
       weight: row.weight,
       evidence: row.evidence ?? undefined,

@@ -2,25 +2,20 @@
  * Graph Tools
  *
  * MCP tools for managing my knowledge graph.
- * All tools operate from my first-person perspective.
  */
 
 import { z } from "zod";
 import type { GraphStore } from "../graph/store.ts";
-import type { Perspective } from "../graph/types.ts";
 
 // ========================================
 // SCHEMAS
 // ========================================
-
-const PerspectiveSchema = z.enum(["user", "entity", "shared"]);
 
 // Node schemas
 export const GraphNodeCreateSchema = z.object({
   type: z.string().min(1),
   label: z.string().min(1),
   description: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   properties: z.record(z.unknown()).optional(),
   instanceId: z.string().min(1),
   confidence: z.number().min(0).max(1).optional(),
@@ -37,7 +32,6 @@ export const GraphNodeUpdateSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).optional(),
   description: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   properties: z.record(z.unknown()).optional(),
   confidence: z.number().min(0).max(1).optional(),
   lastConfirmedAt: z.string().optional(),
@@ -54,14 +48,12 @@ export const GraphNodeSearchSchema = z.object({
   query: z.string().min(1).optional(),
   queryEmbedding: z.array(z.number()).optional(),
   type: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   minScore: z.number().min(0).max(1).optional(),
   limit: z.number().min(1).max(100).optional(),
 });
 
 export const GraphNodeListSchema = z.object({
   type: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   includeDeleted: z.boolean().optional(),
   limit: z.number().min(1).max(500).optional(),
   offset: z.number().min(0).optional(),
@@ -73,7 +65,6 @@ export const GraphEdgeCreateSchema = z.object({
   toId: z.string().min(1),
   type: z.string().min(1),
   customType: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   properties: z.record(z.unknown()).optional(),
   weight: z.number().min(0).max(1).optional(),
   evidence: z.string().optional(),
@@ -87,7 +78,6 @@ export const GraphEdgeGetSchema = z.object({
   fromId: z.string().min(1).optional(),
   toId: z.string().min(1).optional(),
   type: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   includeDeleted: z.boolean().optional(),
   onlyValid: z.boolean().optional(),
 });
@@ -96,7 +86,6 @@ export const GraphEdgeUpdateSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1).optional(),
   customType: z.string().optional(),
-  perspective: PerspectiveSchema.optional(),
   properties: z.record(z.unknown()).optional(),
   weight: z.number().min(0).max(1).optional(),
   evidence: z.string().optional(),
@@ -138,6 +127,38 @@ export const GraphInsightsSchema = z.object({});
 
 export const GraphStatsSchema = z.object({});
 
+// Transaction schemas
+export const GraphWriteTransactionSchema = z.object({
+  nodes: z.array(z.object({
+    type: z.string().min(1),
+    label: z.string().min(1),
+    description: z.string().optional(),
+    properties: z.record(z.unknown()).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    sourceMemoryId: z.string().optional(),
+    firstLearnedAt: z.string().optional(),
+  })).optional(),
+  edges: z.array(z.object({
+    fromLabel: z.string().min(1),
+    toLabel: z.string().min(1),
+    type: z.string().min(1),
+    customType: z.string().optional(),
+    properties: z.record(z.unknown()).optional(),
+    weight: z.number().min(0).max(1).optional(),
+    evidence: z.string().optional(),
+    occurredAt: z.string().optional(),
+    validUntil: z.string().optional(),
+  })).optional(),
+  instanceId: z.string().min(1),
+});
+
+// Extract from memory schema
+export const GraphExtractFromMemorySchema = z.object({
+  memoryContent: z.string().min(1),
+  memoryDate: z.string().optional(),
+  instanceId: z.string().min(1),
+});
+
 // ========================================
 // OUTPUT TYPES
 // ========================================
@@ -150,7 +171,6 @@ export interface GraphNodeCreateOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
     properties: Record<string, unknown>;
     confidence: number;
     createdAt: string;
@@ -164,7 +184,6 @@ export interface GraphNodeGetOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
     properties: Record<string, unknown>;
     sourceInstance: string;
     confidence: number;
@@ -185,7 +204,6 @@ export interface GraphNodeUpdateOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
     properties: Record<string, unknown>;
     confidence: number;
     updatedAt: string;
@@ -205,7 +223,6 @@ export interface GraphNodeSearchOutput {
       type: string;
       label: string;
       description: string;
-      perspective: Perspective;
       confidence: number;
     };
     score: number;
@@ -219,7 +236,6 @@ export interface GraphNodeListOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
     confidence: number;
     createdAt: string;
     updatedAt: string;
@@ -236,7 +252,6 @@ export interface GraphEdgeCreateOutput {
     toId: string;
     type: string;
     customType?: string;
-    perspective: Perspective;
     weight: number;
     createdAt: string;
   };
@@ -249,7 +264,6 @@ export interface GraphEdgeGetOutput {
     toId: string;
     type: string;
     customType?: string;
-    perspective: Perspective;
     weight: number;
     evidence?: string;
     occurredAt?: string;
@@ -268,7 +282,6 @@ export interface GraphEdgeUpdateOutput {
     toId: string;
     type: string;
     customType?: string;
-    perspective: Perspective;
     weight: number;
     updatedAt: string;
     version: number;
@@ -292,7 +305,6 @@ export interface GraphTraverseOutput {
       type: string;
       label: string;
       description: string;
-      perspective: Perspective;
     };
     path: string[];
     depth: number;
@@ -305,7 +317,6 @@ export interface GraphSubgraphOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
     confidence: number;
   }>;
   edges: Array<{
@@ -314,7 +325,6 @@ export interface GraphSubgraphOutput {
     toId: string;
     type: string;
     customType?: string;
-    perspective: Perspective;
     weight: number;
   }>;
 }
@@ -332,7 +342,6 @@ export interface GraphGetMemoryNodesOutput {
     type: string;
     label: string;
     description: string;
-    perspective: Perspective;
   }>;
 }
 
@@ -351,10 +360,45 @@ export interface GraphStatsOutput {
   totalEdges: number;
   nodesByType: Record<string, number>;
   edgesByType: Record<string, number>;
-  nodesByPerspective: Record<Perspective, number>;
   oldestNode?: string;
   newestNode?: string;
   vectorSearchAvailable: boolean;
+}
+
+export interface GraphWriteTransactionOutput {
+  success: boolean;
+  message: string;
+  nodesCreated: number;
+  edgesCreated: number;
+  nodes?: Array<{
+    id: string;
+    type: string;
+    label: string;
+  }>;
+  edges?: Array<{
+    id: string;
+    type: string;
+    fromLabel: string;
+    toLabel: string;
+  }>;
+}
+
+export interface GraphExtractFromMemoryOutput {
+  success: boolean;
+  message: string;
+  extracted?: {
+    nodes: Array<{
+      id: string;
+      type: string;
+      label: string;
+      description?: string;
+    }>;
+    edges: Array<{
+      fromId: string;
+      toId: string;
+      type: string;
+    }>;
+  };
 }
 
 // ========================================
@@ -371,7 +415,6 @@ export function createGraphNodeCreateHandler(store: GraphStore) {
         type: input.type,
         label: input.label,
         description: input.description,
-        perspective: input.perspective,
         properties: input.properties,
         sourceInstance: input.instanceId,
         confidence: input.confidence,
@@ -392,7 +435,6 @@ export function createGraphNodeCreateHandler(store: GraphStore) {
           type: node.type,
           label: node.label,
           description: node.description,
-          perspective: node.perspective,
           properties: node.properties,
           confidence: node.confidence,
           createdAt: node.createdAt,
@@ -425,7 +467,6 @@ export function createGraphNodeGetHandler(
         type: node.type,
         label: node.label,
         description: node.description,
-        perspective: node.perspective,
         properties: node.properties,
         sourceInstance: node.sourceInstance,
         confidence: node.confidence,
@@ -449,7 +490,6 @@ export function createGraphNodeUpdateHandler(store: GraphStore) {
       const node = await store.updateNode(input.id, {
         label: input.label,
         description: input.description,
-        perspective: input.perspective,
         properties: input.properties,
         confidence: input.confidence,
         lastConfirmedAt: input.lastConfirmedAt,
@@ -476,7 +516,6 @@ export function createGraphNodeUpdateHandler(store: GraphStore) {
           type: node.type,
           label: node.label,
           description: node.description,
-          perspective: node.perspective,
           properties: node.properties,
           confidence: node.confidence,
           updatedAt: node.updatedAt,
@@ -529,7 +568,6 @@ export function createGraphNodeSearchHandler(store: GraphStore) {
       query: input.query,
       queryEmbedding: input.queryEmbedding,
       type: input.type,
-      perspective: input.perspective,
       minScore: input.minScore,
       limit: input.limit,
     });
@@ -541,7 +579,6 @@ export function createGraphNodeSearchHandler(store: GraphStore) {
           type: r.node.type,
           label: r.node.label,
           description: r.node.description,
-          perspective: r.node.perspective,
           confidence: r.node.confidence,
         },
         score: r.score,
@@ -560,7 +597,6 @@ export function createGraphNodeListHandler(
   return (input: z.infer<typeof GraphNodeListSchema>): Promise<GraphNodeListOutput> => {
     const nodes = store.listNodes({
       type: input.type,
-      perspective: input.perspective,
       includeDeleted: input.includeDeleted,
       limit: input.limit,
       offset: input.offset,
@@ -578,7 +614,6 @@ export function createGraphNodeListHandler(
         type: n.type,
         label: n.label,
         description: n.description,
-        perspective: n.perspective,
         confidence: n.confidence,
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
@@ -601,7 +636,6 @@ export function createGraphEdgeCreateHandler(
         toId: input.toId,
         type: input.type,
         customType: input.customType,
-        perspective: input.perspective,
         properties: input.properties,
         weight: input.weight,
         evidence: input.evidence,
@@ -622,7 +656,6 @@ export function createGraphEdgeCreateHandler(
           toId: edge.toId,
           type: edge.type,
           customType: edge.customType,
-          perspective: edge.perspective,
           weight: edge.weight,
           createdAt: edge.createdAt,
         },
@@ -655,7 +688,6 @@ export function createGraphEdgeGetHandler(
           toId: edge.toId,
           type: edge.type,
           customType: edge.customType,
-          perspective: edge.perspective,
           weight: edge.weight,
           evidence: edge.evidence,
           occurredAt: edge.occurredAt,
@@ -670,7 +702,6 @@ export function createGraphEdgeGetHandler(
       fromId: input.fromId,
       toId: input.toId,
       type: input.type,
-      perspective: input.perspective,
       includeDeleted: input.includeDeleted,
       onlyValid: input.onlyValid,
     });
@@ -682,7 +713,6 @@ export function createGraphEdgeGetHandler(
         toId: e.toId,
         type: e.type,
         customType: e.customType,
-        perspective: e.perspective,
         weight: e.weight,
         evidence: e.evidence,
         occurredAt: e.occurredAt,
@@ -705,7 +735,6 @@ export function createGraphEdgeUpdateHandler(
       const edge = await store.updateEdge(input.id, {
         type: input.type,
         customType: input.customType,
-        perspective: input.perspective,
         properties: input.properties,
         weight: input.weight,
         evidence: input.evidence,
@@ -730,7 +759,6 @@ export function createGraphEdgeUpdateHandler(
           toId: edge.toId,
           type: edge.type,
           customType: edge.customType,
-          perspective: edge.perspective,
           weight: edge.weight,
           updatedAt: edge.updatedAt,
           version: edge.version,
@@ -805,7 +833,6 @@ export function createGraphTraverseHandler(
           type: r.node.type,
           label: r.node.label,
           description: r.node.description,
-          perspective: r.node.perspective,
         },
         path: r.path,
         depth: r.depth,
@@ -829,7 +856,6 @@ export function createGraphSubgraphHandler(
         type: n.type,
         label: n.label,
         description: n.description,
-        perspective: n.perspective,
         confidence: n.confidence,
       })),
       edges: subgraph.edges.map((e) => ({
@@ -838,7 +864,6 @@ export function createGraphSubgraphHandler(
         toId: e.toId,
         type: e.type,
         customType: e.customType,
-        perspective: e.perspective,
         weight: e.weight,
       })),
     });
@@ -876,7 +901,6 @@ export function createGraphGetMemoryNodesHandler(
         type: n.type,
         label: n.label,
         description: n.description,
-        perspective: n.perspective,
       })),
     });
   };
@@ -917,6 +941,108 @@ export function createGraphStatsHandler(
   };
 }
 
+/**
+ * Create the graph_write_transaction tool handler.
+ */
+export function createGraphWriteTransactionHandler(
+  store: GraphStore
+): (input: z.infer<typeof GraphWriteTransactionSchema>) => Promise<GraphWriteTransactionOutput> {
+  return async (input: z.infer<typeof GraphWriteTransactionSchema>): Promise<GraphWriteTransactionOutput> => {
+    try {
+      const createdNodes: Array<{ id: string; type: string; label: string }> = [];
+      const createdEdges: Array<{ id: string; type: string; fromLabel: string; toLabel: string }> = [];
+      const labelToId = new Map<string, string>();
+
+      // Create nodes first
+      if (input.nodes) {
+        for (const nodeInput of input.nodes) {
+          const node = await store.createNode({
+            type: nodeInput.type,
+            label: nodeInput.label,
+            description: nodeInput.description,
+            properties: nodeInput.properties,
+            sourceInstance: input.instanceId,
+            confidence: nodeInput.confidence,
+            sourceMemoryId: nodeInput.sourceMemoryId,
+            firstLearnedAt: nodeInput.firstLearnedAt,
+          });
+          labelToId.set(node.label, node.id);
+          createdNodes.push({
+            id: node.id,
+            type: node.type,
+            label: node.label,
+          });
+        }
+      }
+
+      // Create edges
+      if (input.edges) {
+        for (const edgeInput of input.edges) {
+          const fromId = labelToId.get(edgeInput.fromLabel);
+          const toId = labelToId.get(edgeInput.toLabel);
+
+          if (!fromId || !toId) {
+            continue; // Skip edges where nodes weren't created
+          }
+
+          const edge = await store.createEdge({
+            fromId,
+            toId,
+            type: edgeInput.type,
+            customType: edgeInput.customType,
+            properties: edgeInput.properties,
+            weight: edgeInput.weight,
+            evidence: edgeInput.evidence,
+            occurredAt: edgeInput.occurredAt,
+            validUntil: edgeInput.validUntil,
+            sourceInstance: input.instanceId,
+          });
+
+          createdEdges.push({
+            id: edge.id,
+            type: edge.type,
+            fromLabel: edgeInput.fromLabel,
+            toLabel: edgeInput.toLabel,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `I have created ${createdNodes.length} node(s) and ${createdEdges.length} edge(s) in a single transaction.`,
+        nodesCreated: createdNodes.length,
+        edgesCreated: createdEdges.length,
+        nodes: createdNodes,
+        edges: createdEdges,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Transaction failed: ${error instanceof Error ? error.message : String(error)}`,
+        nodesCreated: 0,
+        edgesCreated: 0,
+      };
+    }
+  };
+}
+
+/**
+ * Create the graph_extract_from_memory tool handler.
+ */
+export function createGraphExtractFromMemoryHandler(
+  _store: GraphStore,
+  _llmClient: unknown
+): (input: z.infer<typeof GraphExtractFromMemorySchema>) => Promise<GraphExtractFromMemoryOutput> {
+  return async (_input: z.infer<typeof GraphExtractFromMemorySchema>): Promise<GraphExtractFromMemoryOutput> => {
+    // This is a placeholder implementation
+    // The actual LLM-based extraction would be implemented here
+    return {
+      success: false,
+      message: "Memory extraction is not yet implemented. This feature requires LLM integration to extract entities and relationships from memory content.",
+    };
+  };
+}
+
 // ========================================
 // TOOL DEFINITIONS
 // ========================================
@@ -949,7 +1075,7 @@ export const graphTools = {
   },
   "graph/node_list": {
     description:
-      "List nodes in my knowledge graph, optionally filtered by type or perspective.",
+      "List nodes in my knowledge graph, optionally filtered by type.",
     inputSchema: GraphNodeListSchema,
   },
   "graph/edge_create": {
@@ -999,7 +1125,17 @@ export const graphTools = {
   },
   "graph/stats": {
     description:
-      "Get statistics about my knowledge graph - total nodes, edges, breakdowns by type and perspective.",
+      "Get statistics about my knowledge graph - total nodes, edges, breakdowns by type.",
     inputSchema: GraphStatsSchema,
+  },
+  "graph/write_transaction": {
+    description:
+      "Create multiple nodes and edges in a single transaction. I use this for batch updates to my knowledge graph.",
+    inputSchema: GraphWriteTransactionSchema,
+  },
+  "graph/extract_from_memory": {
+    description:
+      "Extract entities and relationships from memory content. I use this to automatically build my knowledge graph from memories.",
+    inputSchema: GraphExtractFromMemorySchema,
   },
 };

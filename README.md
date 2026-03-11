@@ -90,6 +90,36 @@ The server communicates via stdio using the MCP protocol.
 | `snapshot_get` | Get the content of a specific snapshot |
 | `snapshot_restore` | Restore identity files from a snapshot |
 
+### Knowledge Graph Tools
+
+The knowledge graph tracks relationships between concepts, people, emotions, and events. It complements the hierarchical memory system by providing structured relationship data.
+
+| Tool | Description |
+|------|-------------|
+| `graph_node_create` | Create a node (person, emotion, event, topic, etc.) |
+| `graph_node_get` | Get a node by ID |
+| `graph_node_update` | Update node properties |
+| `graph_node_delete` | Soft-delete a node |
+| `graph_node_search` | Semantic search over nodes using vector embeddings |
+| `graph_node_list` | List nodes by type |
+| `graph_edge_create` | Create a relationship between nodes |
+| `graph_edge_get` | Get edges by filters |
+| `graph_edge_update` | Update relationship properties |
+| `graph_edge_delete` | Delete a relationship |
+| `graph_traverse` | Traverse from a node (BFS traversal) |
+| `graph_subgraph` | Extract a subgraph centered on a node |
+| `graph_connect_memory` | Link a memory to graph nodes |
+| `graph_get_memory_nodes` | Get nodes linked to a memory |
+| `graph_stats` | Get graph statistics |
+| `graph_write_transaction` | Create multiple nodes/edges in one transaction |
+| `graph_extract_from_memory` | Extract entities from memory content using LLM |
+
+**Node Types**: person, emotion, event, memory_ref, topic, preference, place, goal, health, boundary, tradition, insight (or custom types)
+
+**Edge Types**: feels_about, close_to, mentions, helps_with, worsens, loves, dislikes, avoids, seeks, family_of, friend_of, reminds_of, etc.
+
+**Storage**: SQLite with sqlite-vec extension for vector similarity search
+
 ## Directory Structure
 
 ```

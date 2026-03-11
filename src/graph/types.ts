@@ -7,6 +7,7 @@
 
 /**
  * Perspective tracking - whose knowledge/feeling is this?
+ * @deprecated - Simplified to always use "shared"
  */
 export type Perspective = "user" | "entity" | "shared";
 
@@ -23,8 +24,6 @@ export interface GraphNode {
   label: string;
   /** Detailed description of what this node represents */
   description: string;
-  /** Whose knowledge/perspective is this? */
-  perspective: Perspective;
   /** Flexible key-value properties */
   properties: Record<string, unknown>;
   /** Vector embedding for semantic search */
@@ -64,8 +63,6 @@ export interface GraphEdge {
   type: string;
   /** For type="custom", the actual relationship name */
   customType?: string;
-  /** Whose relationship/perspective is this? */
-  perspective: Perspective;
   /** Flexible key-value properties (e.g., {"intensity": 0.8, "context": "..."}) */
   properties: Record<string, unknown>;
   /** Strength of relationship (0-1) */
@@ -146,7 +143,6 @@ export interface CreateNodeInput {
   type: string;
   label: string;
   description?: string;
-  perspective?: Perspective;
   properties?: Record<string, unknown>;
   sourceInstance: string;
   confidence?: number;
@@ -162,7 +158,6 @@ export interface CreateEdgeInput {
   toId: string;
   type: string;
   customType?: string;
-  perspective?: Perspective;
   properties?: Record<string, unknown>;
   weight?: number;
   evidence?: string;
@@ -177,7 +172,6 @@ export interface CreateEdgeInput {
 export interface UpdateNodeInput {
   label?: string;
   description?: string;
-  perspective?: Perspective;
   properties?: Record<string, unknown>;
   confidence?: number;
   lastConfirmedAt?: string;
@@ -190,7 +184,6 @@ export interface UpdateNodeInput {
 export interface UpdateEdgeInput {
   type?: string;
   customType?: string;
-  perspective?: Perspective;
   properties?: Record<string, unknown>;
   weight?: number;
   evidence?: string;
@@ -209,8 +202,6 @@ export interface SearchNodesOptions {
   queryEmbedding?: number[];
   /** Filter by node type */
   type?: string;
-  /** Filter by perspective */
-  perspective?: Perspective;
   /** Minimum similarity score (0-1) */
   minScore?: number;
   /** Maximum results */
@@ -223,8 +214,6 @@ export interface SearchNodesOptions {
 export interface ListNodesOptions {
   /** Filter by node type */
   type?: string;
-  /** Filter by perspective */
-  perspective?: Perspective;
   /** Include deleted nodes */
   includeDeleted?: boolean;
   /** Maximum results */
@@ -243,8 +232,6 @@ export interface GetEdgesOptions {
   toId?: string;
   /** Filter by edge type */
   type?: string;
-  /** Filter by perspective */
-  perspective?: Perspective;
   /** Include deleted edges */
   includeDeleted?: boolean;
   /** Only edges currently valid (validUntil is null or in future) */
@@ -327,8 +314,6 @@ export interface GraphStats {
   nodesByType: Record<string, number>;
   /** Edges by type */
   edgesByType: Record<string, number>;
-  /** Nodes by perspective */
-  nodesByPerspective: Record<Perspective, number>;
   /** Oldest node createdAt */
   oldestNode?: string;
   /** Newest node createdAt */

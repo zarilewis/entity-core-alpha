@@ -129,7 +129,7 @@ The knowledge graph complements hierarchical memory by tracking relationships be
 - `graph_node_update` - Update node properties
 - `graph_node_delete` - Soft-delete a node
 - `graph_node_search` - Semantic search over nodes (uses sqlite-vec)
-- `graph_node_list` - List nodes by type or perspective
+- `graph_node_list` - List nodes by type
 
 **Edge Operations:**
 - `graph_edge_create` - Create a relationship between nodes (feels_about, close_to, mentions, helps_with, worsens, etc.)
@@ -145,8 +145,11 @@ The knowledge graph complements hierarchical memory by tracking relationships be
 - `graph_insights` - Discover patterns (bridges, clusters)
 - `graph_stats` - Get graph statistics
 
+**Batch Operations:**
+- `graph_write_transaction` - Create multiple nodes and edges in a single transaction
+- `graph_extract_from_memory` - Extract entities and relationships from memory content using LLM
+
 **Key Concepts:**
-- **Perspective**: Each node/edge has a perspective (`user`, `entity`, or `shared`) tracking whose knowledge it represents
 - **Confidence**: 0-1 scale for how certain the knowledge is
 - **Temporal fields**: Track when knowledge was learned, confirmed, or ended
 - **Dynamic types**: Predefined types are suggestions; arbitrary types allowed

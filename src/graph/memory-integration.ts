@@ -11,7 +11,6 @@
 
 import type { GraphStore } from "./store.ts";
 import type { MemoryEntry } from "../types.ts";
-import type { Perspective } from "./types.ts";
 
 /**
  * Result of extracting entities from a memory.
@@ -22,7 +21,6 @@ export interface ExtractionResult {
     type: string;
     label: string;
     description?: string;
-    perspective?: Perspective;
     properties?: Record<string, unknown>;
     confidence?: number;
   }>;
@@ -32,7 +30,6 @@ export interface ExtractionResult {
     toLabel: string;
     type: string;
     customType?: string;
-    perspective?: Perspective;
     properties?: Record<string, unknown>;
     weight?: number;
     evidence?: string;
@@ -66,7 +63,6 @@ export class MemoryIntegration {
         type: "memory_ref",
         label: this.getMemoryLabel(memory),
         description: memory.content.slice(0, 500),
-        perspective: "shared",
         properties: {
           granularity: memory.granularity,
           date: memory.date,
@@ -121,7 +117,6 @@ export class MemoryIntegration {
       type: string;
       label: string;
       description?: string;
-      perspective?: Perspective;
       properties?: Record<string, unknown>;
       confidence?: number;
     },
@@ -152,7 +147,6 @@ export class MemoryIntegration {
       toLabel: string;
       type: string;
       customType?: string;
-      perspective?: Perspective;
       properties?: Record<string, unknown>;
       weight?: number;
       evidence?: string;
@@ -172,7 +166,6 @@ export class MemoryIntegration {
         toId: toNode.id,
         type: input.type,
         customType: input.customType,
-        perspective: input.perspective,
         properties: input.properties,
         weight: input.weight,
         evidence: input.evidence,
@@ -202,7 +195,6 @@ export class MemoryIntegration {
           fromId: memoryNodeId,
           toId: entityId,
           type: "mentions",
-          perspective: "shared",
           weight: 1.0,
           sourceInstance: instanceId,
         });
@@ -273,7 +265,6 @@ export class MemoryIntegration {
             type: nodeInput.type,
             label: nodeInput.label,
             description: nodeInput.description,
-            perspective: nodeInput.perspective,
             properties: nodeInput.properties,
             confidence: nodeInput.confidence,
           },
@@ -305,7 +296,6 @@ export class MemoryIntegration {
               toId,
               type: edgeInput.type,
               customType: edgeInput.customType,
-              perspective: edgeInput.perspective,
               properties: edgeInput.properties,
               weight: edgeInput.weight,
               evidence: edgeInput.evidence,

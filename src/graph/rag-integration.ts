@@ -6,7 +6,7 @@
  */
 
 import type { GraphStore } from "./store.ts";
-import type { GraphNode, GraphEdge, Subgraph, Perspective } from "./types.ts";
+import type { GraphNode, GraphEdge, Subgraph } from "./types.ts";
 
 /**
  * Options for graph-enhanced retrieval.
@@ -20,8 +20,6 @@ export interface GraphRAGOptions {
   maxRelatedNodes?: number;
   /** Minimum similarity score for vector search */
   minScore?: number;
-  /** Filter by perspective */
-  perspective?: Perspective;
   /** Include evidence for relationships */
   includeEvidence?: boolean;
 }
@@ -70,7 +68,6 @@ export class GraphRAG {
       traversalDepth = 2,
       maxRelatedNodes = 10,
       minScore = 0.3,
-      perspective,
     } = options;
 
     // Step 1: Vector search for primary nodes
@@ -78,7 +75,6 @@ export class GraphRAG {
       queryEmbedding,
       minScore,
       limit: maxVectorResults,
-      perspective,
     });
 
     const primaryNodes = searchResults.map((r) => ({
@@ -190,9 +186,8 @@ export class GraphRAG {
       sections.push("## Key Concepts (via semantic search)");
       for (const { node, score } of primaryNodes) {
         const confidence = `confidence: ${Math.round(node.confidence * 100)}%`;
-        const perspective = `perspective: ${node.perspective}`;
         sections.push(
-          `- **${node.label}** (${node.type})\n  ${node.description}\n  [${confidence}, ${perspective}, relevance: ${Math.round(score * 100)}%]`
+          `- **${node.label}** (${node.type})\n  ${node.description}\n  [${confidence}, relevance: ${Math.round(score * 100)}%]`
         );
       }
     }
@@ -236,7 +231,7 @@ export class GraphRAG {
       sections.push("## Nodes");
       for (const node of subgraph.nodes) {
         sections.push(
-          `- **${node.label}** (${node.type}, ${node.perspective})\n  ${node.description}`
+          `- **${node.label}** (${node.type})\n  ${node.description}`
         );
       }
     }

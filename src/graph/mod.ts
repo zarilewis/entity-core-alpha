@@ -9,7 +9,6 @@
 export {
   type GraphNode,
   type GraphEdge,
-  type Perspective,
   type CreateNodeInput,
   type CreateEdgeInput,
   type UpdateNodeInput,

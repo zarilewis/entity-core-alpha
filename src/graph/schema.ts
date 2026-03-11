@@ -19,7 +19,6 @@ export const GRAPH_SCHEMA = `
     type TEXT NOT NULL,
     label TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    perspective TEXT NOT NULL CHECK (perspective IN ('user', 'entity', 'shared')),
     properties TEXT NOT NULL DEFAULT '{}',
     source_instance TEXT NOT NULL,
     confidence REAL NOT NULL DEFAULT 0.5,
@@ -36,9 +35,6 @@ export const GRAPH_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_graph_nodes_type
     ON graph_nodes(type) WHERE deleted = 0;
 
-  CREATE INDEX IF NOT EXISTS idx_graph_nodes_perspective
-    ON graph_nodes(perspective) WHERE deleted = 0;
-
   CREATE INDEX IF NOT EXISTS idx_graph_nodes_source_memory
     ON graph_nodes(source_memory_id) WHERE deleted = 0;
 
@@ -52,7 +48,6 @@ export const GRAPH_SCHEMA = `
     to_id TEXT NOT NULL,
     type TEXT NOT NULL,
     custom_type TEXT,
-    perspective TEXT NOT NULL CHECK (perspective IN ('user', 'entity', 'shared')),
     properties TEXT NOT NULL DEFAULT '{}',
     weight REAL NOT NULL DEFAULT 0.5,
     evidence TEXT,
@@ -76,9 +71,6 @@ export const GRAPH_SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_graph_edges_type
     ON graph_edges(type) WHERE deleted = 0;
-
-  CREATE INDEX IF NOT EXISTS idx_graph_edges_perspective
-    ON graph_edges(perspective) WHERE deleted = 0;
 
   CREATE INDEX IF NOT EXISTS idx_graph_edges_valid
     ON graph_edges(valid_until) WHERE deleted = 0;

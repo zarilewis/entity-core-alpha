@@ -1050,7 +1050,7 @@ export function createGraphExtractFromMemoryHandler(
 export const graphTools = {
   "graph/node_create": {
     description:
-      "Create a new node in my knowledge graph. I use this to remember people, emotions, events, preferences, and how things connect.",
+      "Create a new node in my knowledge graph. I use this to remember people, emotions, events, preferences, and how things connect. IMPORTANT: Write from first-person perspective - use 'me' (type: self) for self-references, 'user' for the person I interact with.",
     inputSchema: GraphNodeCreateSchema,
   },
   "graph/node_get": {
@@ -1080,7 +1080,7 @@ export const graphTools = {
   },
   "graph/edge_create": {
     description:
-      "Create a relationship between two nodes. I use this to connect things like 'user feels anxious about work' or 'meditation helps with stress'.",
+      "Create a relationship between two nodes. I use this to connect things like 'user feels anxious about work' or 'meditation helps with stress'. IMPORTANT: Use first-person perspective - relationships are how I see connections in my world.",
     inputSchema: GraphEdgeCreateSchema,
   },
   "graph/edge_get": {
@@ -1130,12 +1130,12 @@ export const graphTools = {
   },
   "graph/write_transaction": {
     description:
-      "Create multiple nodes and edges in a single transaction. I use this for batch updates to my knowledge graph.",
+      "Create multiple nodes and edges in a single transaction. I use this for batch updates to my knowledge graph. IMPORTANT: Write from first-person perspective - use 'me' (type: self) for self-references, 'user' for the person I interact with.",
     inputSchema: GraphWriteTransactionSchema,
   },
   "graph/extract_from_memory": {
     description:
-      "Extract entities and relationships from memory content. I use this to automatically build my knowledge graph from memories.",
+      "Extract entities and relationships from memory content. I use this to automatically build my knowledge graph from memories. IMPORTANT: Extracted content uses first-person perspective.",
     inputSchema: GraphExtractFromMemorySchema,
   },
 };

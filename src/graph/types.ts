@@ -89,6 +89,7 @@ export interface GraphEdge {
  * Suggested node types (not exhaustive - arbitrary types allowed).
  */
 export type SuggestedNodeType =
+  | "self"
   | "person"
   | "emotion"
   | "event"

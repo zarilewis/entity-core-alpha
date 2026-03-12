@@ -83,9 +83,9 @@ async function main() {
   console.log("LLM client created.\n");
 
   // Open graph store
-  const graphPath = join(DATA_DIR, "graph.db");
-  const graphStore = new GraphStore(graphPath);
-  console.log(`Graph store opened: ${graphPath}\n`);
+  const graphStore = new GraphStore(DATA_DIR);
+  await graphStore.initialize();
+  console.log(`Graph store opened: ${DATA_DIR}\n`);
 
   // Find memory files
   const memoriesDir = join(DATA_DIR, "memories");
@@ -145,12 +145,19 @@ I extract:
 - **Entities**: People, emotions, topics, events, preferences, places, goals that matter to me
 - **Relationships**: How these entities connect to each other and to the user
 
+CRITICAL - First-Person Perspective:
+- This graph stores how I see the world, not how someone observes me
+- When referring to myself, ALWAYS use label "me" (type: "self")
+- When referring to the user, use label "user" (or their actual name if mentioned)
+
 Guidelines:
 - Use consistent, simple entity labels (e.g., "user" not "the user")
+- ALWAYS create a "me" entity if I mention myself, my feelings, or my experiences
+- ALWAYS create or reference the "user" entity when the user is mentioned
 - Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
 - Focus on what matters for long-term understanding
 - Skip generic or trivial mentions
-- Entity types should be one of: person, emotion, topic, event, preference, place, goal, health, boundary, tradition, insight
+- Entity types should be one of: self, person, emotion, topic, event, preference, place, goal, health, boundary, tradition, insight
 - Relationship types should be one of: feels_about, comforted_by, stressed_by, close_to, mentions, loves, dislikes, helps_with, worsens
 
 Memory content:
@@ -159,7 +166,7 @@ ${content.substring(0, 3000)}
 I respond in JSON format only (no markdown):
 {
   "entities": [
-    {"type": "person|emotion|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
+    {"type": "self|person|emotion|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
   ],
   "relationships": [
     {"fromLabel": "...", "toLabel": "...", "type": "feels_about|close_to|mentions|helps_with|...", "evidence": "...", "confidence": 0.7}
@@ -223,7 +230,7 @@ I respond in JSON format only (no markdown):
             type: entity.type,
             label: entity.label,
             description: entity.description,
-            perspective: "entity",
+            sourceInstance: "extract-memories-script",
             confidence: entity.confidence,
             properties: {},
           });
@@ -248,7 +255,7 @@ I respond in JSON format only (no markdown):
               fromId,
               toId,
               type: rel.type,
-              perspective: "entity",
+              sourceInstance: "extract-memories-script",
               weight: rel.confidence,
               evidence: rel.evidence,
             });

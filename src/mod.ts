@@ -19,6 +19,8 @@
  * The server communicates via stdio using MCP protocol.
  */
 
+import "@std/dotenv/load";
+import { ensureDir } from "@std/fs";
 import { startServer } from "./server.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
 
@@ -33,6 +35,7 @@ export * from "./sync/mod.ts";
 if (import.meta.main) {
   const dataDir = Deno.env.get("ENTITY_CORE_DATA_DIR") ?? "./data";
 
+  await ensureDir(dataDir);
   console.error(`Starting Entity Core with data directory: ${dataDir}`);
 
   await startServer({

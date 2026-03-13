@@ -14,6 +14,9 @@ import type { IdentityFile } from "../types.ts";
  */
 const IdentityCategorySchema = z.enum(["self", "user", "relationship", "custom"]);
 
+/** Safe filename: alphanumeric, underscores, hyphens, must end with .md. Prevents path traversal. */
+const SafeFilenameSchema = z.string().min(1).regex(/^[a-zA-Z0-9_-]+\.md$/, "Filename must be alphanumeric (with underscores/hyphens) and end with .md");
+
 /**
  * Input schema for identity/get_all tool.
  */
@@ -24,7 +27,7 @@ export const IdentityGetAllSchema = z.object({});
  */
 export const IdentityWriteSchema = z.object({
   category: IdentityCategorySchema,
-  filename: z.string().min(1),
+  filename: SafeFilenameSchema,
   content: z.string(),
   instanceId: z.string().min(1),
 });
@@ -34,7 +37,7 @@ export const IdentityWriteSchema = z.object({
  */
 export const IdentityAppendSchema = z.object({
   category: IdentityCategorySchema,
-  filename: z.string().min(1),
+  filename: SafeFilenameSchema,
   content: z.string(),
   reason: z.string().optional(),
   instanceId: z.string().min(1),
@@ -45,7 +48,7 @@ export const IdentityAppendSchema = z.object({
  */
 export const IdentityPrependSchema = z.object({
   category: IdentityCategorySchema,
-  filename: z.string().min(1),
+  filename: SafeFilenameSchema,
   content: z.string(),
   reason: z.string().optional(),
   instanceId: z.string().min(1),
@@ -56,7 +59,7 @@ export const IdentityPrependSchema = z.object({
  */
 export const IdentityUpdateSectionSchema = z.object({
   category: IdentityCategorySchema,
-  filename: z.string().min(1),
+  filename: SafeFilenameSchema,
   section: z.string().min(1),
   content: z.string(),
   reason: z.string().optional(),
@@ -67,7 +70,7 @@ export const IdentityUpdateSectionSchema = z.object({
  * Input schema for identity_delete_custom tool.
  */
 export const IdentityDeleteCustomSchema = z.object({
-  filename: z.string().min(1),
+  filename: SafeFilenameSchema,
 });
 
 /**

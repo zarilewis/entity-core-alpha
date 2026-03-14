@@ -34,12 +34,12 @@ export const SyncPullSchema = z.object({
 export const SyncPushSchema = z.object({
   instance: z.object({
     id: z.string().min(1),
-    type: z.enum(["sby", "sillytavern", "openwebui", "claude-code", "other"]),
+    type: z.enum(["psycheros", "sby", "sillytavern", "openwebui", "claude-code", "other"]),
     name: z.string().optional(),
     version: z.number(),
   }),
   identityChanges: z.array(z.object({
-    category: z.enum(["self", "user", "relationship"]),
+    category: z.enum(["self", "user", "relationship", "custom"]),
     filename: z.string(),
     content: z.string(),
     version: z.number(),

@@ -105,4 +105,4 @@ Before significant commits:
 
 ## Related Projects
 
-- [Psycheros](../Psycheros/) — The primary embodiment (web-based harness)
+- [Psycheros](https://github.com/zarilewis/Psycheros) — The primary embodiment (web-based harness)

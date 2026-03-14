@@ -35,10 +35,10 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/memory.ts` | Memory tools (create, search, list) |
 | `src/tools/sync.ts` | Sync tools (pull, push, status) |
 | `src/tools/snapshot.ts` | Snapshot tools (create, list, get, restore) |
-| `src/tools/graph.ts` | Knowledge graph tools (15 tools for nodes, edges, traversal) |
+| `src/tools/graph.ts` | Knowledge graph tools (18 tools for nodes, edges, traversal, batch ops) |
 | `src/graph/mod.ts` | Graph module barrel export |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
-| `src/graph/types.ts` | Graph type definitions (GraphNode, GraphEdge, Perspective) |
+| `src/graph/types.ts` | Graph type definitions (GraphNode, GraphEdge, search/traverse options) |
 | `src/graph/schema.ts` | SQLite schema for graph tables |
 | `src/graph/memory-integration.ts` | Memory-to-graph linking helpers |
 | `src/graph/rag-integration.ts` | Hybrid retrieval combining vector search + graph traversal |
@@ -159,7 +159,7 @@ The knowledge graph complements hierarchical memory by tracking relationships be
 When an embodiment connects, it identifies itself with an instance type:
 
 ```typescript
-type InstanceType = "psycheros" | "sillytavern" | "openwebui" | "claude-code" | "other";
+type InstanceType = "psycheros" | "sby" | "sillytavern" | "openwebui" | "claude-code" | "other";
 ```
 
 Adding a new embodiment type:

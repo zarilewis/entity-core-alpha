@@ -30,7 +30,7 @@ All instructions and prompts in this system are written from my first-person per
 
 ```bash
 cd ~/projects/entity-core
-deno run -A src/mod.ts
+deno run -A --unstable-cron src/mod.ts
 ```
 
 ## Usage
@@ -50,6 +50,11 @@ The server communicates via stdio using the MCP protocol.
 |----------|---------|-------------|
 | `ENTITY_CORE_DATA_DIR` | `./data` | Directory for storing identity and memory files |
 | `ENTITY_CORE_SNAPSHOT_RETENTION_DAYS` | `30` | Days to retain snapshots before cleanup |
+| `ENTITY_CORE_LLM_API_KEY` | _(falls back to `ZAI_API_KEY`)_ | API key for LLM-powered graph extraction |
+| `ENTITY_CORE_LLM_BASE_URL` | Z.ai endpoint | LLM API base URL |
+| `ENTITY_CORE_LLM_MODEL` | `glm-4.7` _(falls back to `ZAI_MODEL`)_ | LLM model for extraction |
+| `ENTITY_CORE_LLM_TEMPERATURE` | `0.3` | Sampling temperature for extraction |
+| `ENTITY_CORE_LLM_MAX_TOKENS` | `2000` | Max tokens in extraction responses |
 
 ## MCP Tools
 
@@ -62,7 +67,6 @@ The server communicates via stdio using the MCP protocol.
 | `identity_append` | Append content to an identity file |
 | `identity_prepend` | Prepend content to an identity file |
 | `identity_update_section` | Update a specific section in an identity file |
-| `identity_delete_custom` | Delete a custom identity file (custom category only) |
 | `identity_delete_custom` | Delete a custom identity file (custom category only) |
 
 ### Memory Tools
@@ -132,7 +136,22 @@ entity-core/
 │   │   ├── mod.ts          # Tool registry
 │   │   ├── identity.ts     # Identity file tools
 │   │   ├── memory.ts       # Memory operation tools
-│   │   └── sync.ts         # Sync protocol tools
+│   │   ├── sync.ts         # Sync protocol tools
+│   │   ├── snapshot.ts     # Snapshot management tools
+│   │   └── graph.ts        # Knowledge graph tools (18 tools)
+│   ├── graph/
+│   │   ├── mod.ts          # Barrel export
+│   │   ├── types.ts        # GraphNode, GraphEdge, search/traverse types
+│   │   ├── store.ts        # GraphStore class (SQLite + sqlite-vec)
+│   │   ├── schema.ts       # SQLite schema for graph tables
+│   │   ├── memory-integration.ts  # Memory-to-graph linking
+│   │   └── rag-integration.ts     # Hybrid vector search + graph traversal
+│   ├── llm/
+│   │   ├── mod.ts          # Barrel export
+│   │   └── client.ts       # OpenAI-compatible LLM client (for extraction)
+│   ├── snapshot/
+│   │   ├── mod.ts          # Barrel export
+│   │   └── types.ts        # Snapshot metadata types
 │   ├── storage/
 │   │   └── file-store.ts   # File-based storage
 │   └── sync/

@@ -64,6 +64,8 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, instance relevance |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | Node/edge types, confidence scoring, temporal tracking, hybrid RAG |
 | [docs/snapshots.md](docs/snapshots.md) | Automatic backups, retention policies, restore procedures |
+| [docs/code-review-findings.md](docs/code-review-findings.md) | Code review bugs fixed, SafeFilenameSchema rationale |
+| [docs/security-audit.md](docs/security-audit.md) | Security audit findings, path traversal fix details |
 
 ## Documentation System
 

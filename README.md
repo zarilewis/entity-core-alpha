@@ -135,6 +135,3 @@ For detailed information on specific subsystems:
 - **[Snapshot System](docs/snapshots.md)** — Automatic backups, retention, restore procedures
 - **[Entity Philosophy](docs/entity-philosophy.md)** — First-person convention, ownership, design philosophy
 
-## License
-
-MIT

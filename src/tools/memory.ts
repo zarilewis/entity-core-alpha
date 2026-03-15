@@ -19,7 +19,7 @@ const GranularitySchema = z.enum(["daily", "weekly", "monthly", "yearly", "signi
  */
 export const MemoryCreateSchema = z.object({
   granularity: GranularitySchema,
-  date: z.string().regex(/^\d{4}(-\d{2})?(-\d{2})?$/),
+  date: z.string().regex(/^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$/),
   content: z.string().min(1),
   chatIds: z.array(z.string()).optional().default([]),
   instanceId: z.string().min(1),

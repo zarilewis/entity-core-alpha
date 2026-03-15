@@ -542,11 +542,19 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     },
     async ({ query, queryEmbedding, type, minScore, limit }) => {
       await graphStore.initialize();
-      const handler = createGraphNodeSearchHandler(graphStore);
-      const result = await handler({ query, queryEmbedding, type, minScore, limit });
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
+      try {
+        const handler = createGraphNodeSearchHandler(graphStore);
+        const result = await handler({ query, queryEmbedding, type, minScore, limit });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("[Graph] graph_node_search failed:", message);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ results: [], vectorSearchUsed: false, error: message }, null, 2) }],
+        };
+      }
     }
   );
 

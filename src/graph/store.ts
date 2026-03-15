@@ -387,6 +387,7 @@ export class GraphStore {
     }
 
     // Vector search with join
+    // sqlite-vec requires v.k = ? to specify KNN count — outer LIMIT alone is not pushed down
     const serialized = serializeVector(queryEmbedding);
     const sql = `
       SELECT n.*, v.distance
@@ -394,6 +395,7 @@ export class GraphStore {
       JOIN vec_graph_nodes v ON n.rowid = v.rowid
       WHERE ${conditions.join(" AND ")}
         AND v.embedding MATCH ?
+        AND v.k = ?
         AND v.distance <= ?
       ORDER BY v.distance ASC
       LIMIT ?
@@ -418,7 +420,7 @@ export class GraphStore {
         deleted: number;
         distance: number;
       }
-    >(...params, serialized, 2 * (1 - minScore), limit);
+    >(...params, serialized, limit, 2 * (1 - minScore), limit);
     stmt.finalize();
 
     return rows.map((row) => ({

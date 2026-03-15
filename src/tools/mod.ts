@@ -80,7 +80,6 @@ export {
   createGraphInsightsHandler,
   createGraphStatsHandler,
   createGraphWriteTransactionHandler,
-  createGraphExtractFromMemoryHandler,
   GraphNodeCreateSchema,
   GraphNodeGetSchema,
   GraphNodeUpdateSchema,
@@ -98,7 +97,6 @@ export {
   GraphInsightsSchema,
   GraphStatsSchema,
   GraphWriteTransactionSchema,
-  GraphExtractFromMemorySchema,
   type GraphNodeCreateOutput,
   type GraphNodeGetOutput,
   type GraphNodeUpdateOutput,
@@ -116,5 +114,4 @@ export {
   type GraphInsightsOutput,
   type GraphStatsOutput,
   type GraphWriteTransactionOutput,
-  type GraphExtractFromMemoryOutput,
 } from "./graph.ts";

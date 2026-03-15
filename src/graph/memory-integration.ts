@@ -13,30 +13,6 @@ import type { GraphStore } from "./store.ts";
 import type { MemoryEntry } from "../types.ts";
 
 /**
- * Result of extracting entities from a memory.
- */
-export interface ExtractionResult {
-  /** Nodes that were identified */
-  nodes: Array<{
-    type: string;
-    label: string;
-    description?: string;
-    properties?: Record<string, unknown>;
-    confidence?: number;
-  }>;
-  /** Edges that were identified */
-  edges: Array<{
-    fromLabel: string;
-    toLabel: string;
-    type: string;
-    customType?: string;
-    properties?: Record<string, unknown>;
-    weight?: number;
-    evidence?: string;
-  }>;
-}
-
-/**
  * Memory Integration handles connecting memories to the graph.
  *
  * The actual extraction of entities from memory content is designed
@@ -53,13 +29,13 @@ export class MemoryIntegration {
    * Create a memory_ref node for a new memory.
    * This creates a node that represents the memory itself in the graph.
    */
-  async createMemoryNode(
+  createMemoryNode(
     memory: MemoryEntry,
     instanceId: string
-  ): Promise<{ nodeId: string } | null> {
+  ): { nodeId: string } | null {
     try {
       // Create a memory_ref node
-      const node = await this.store.createNode({
+      const node = this.store.createNode({
         type: "memory_ref",
         label: this.getMemoryLabel(memory),
         description: memory.content.slice(0, 500),
@@ -97,22 +73,15 @@ export class MemoryIntegration {
    * Find an existing node by label (case-insensitive).
    */
   findNodeByLabel(label: string, type?: string): { id: string; label: string } | null {
-    // Use text search to find matching nodes
-    const results = this.store.listNodes({ type, limit: 100 });
-
-    const normalizedLabel = label.toLowerCase().trim();
-    const match = results.find(
-      (n) => n.label.toLowerCase().trim() === normalizedLabel
-    );
-
-    return match ? { id: match.id, label: match.label } : null;
+    const node = this.store.findNodeByLabel(label, type);
+    return node ? { id: node.id, label: node.label } : null;
   }
 
   /**
    * Find or create a node by label.
    * If the node exists, returns it. Otherwise creates a new one.
    */
-  async findOrCreateNode(
+  findOrCreateNode(
     input: {
       type: string;
       label: string;
@@ -121,7 +90,7 @@ export class MemoryIntegration {
       confidence?: number;
     },
     instanceId: string
-  ): Promise<{ id: string; label: string; isNew: boolean }> {
+  ): { id: string; label: string; isNew: boolean } {
     // Try to find existing node
     const existing = this.findNodeByLabel(input.label, input.type);
     if (existing) {
@@ -129,7 +98,7 @@ export class MemoryIntegration {
     }
 
     // Create new node
-    const node = await this.store.createNode({
+    const node = this.store.createNode({
       ...input,
       sourceInstance: instanceId,
     });
@@ -141,7 +110,7 @@ export class MemoryIntegration {
    * Create an edge between two nodes, looking them up by label.
    * If either node doesn't exist, it will NOT be created automatically.
    */
-  async createEdgeByLabels(
+  createEdgeByLabels(
     input: {
       fromLabel: string;
       toLabel: string;
@@ -152,7 +121,7 @@ export class MemoryIntegration {
       evidence?: string;
     },
     instanceId: string
-  ): Promise<{ edgeId: string } | null> {
+  ): { edgeId: string } | null {
     const fromNode = this.findNodeByLabel(input.fromLabel);
     const toNode = this.findNodeByLabel(input.toLabel);
 
@@ -161,7 +130,7 @@ export class MemoryIntegration {
     }
 
     try {
-      const edge = await this.store.createEdge({
+      const edge = this.store.createEdge({
         fromId: fromNode.id,
         toId: toNode.id,
         type: input.type,
@@ -182,16 +151,16 @@ export class MemoryIntegration {
    * Link a memory to multiple nodes.
    * Creates "mentions" edges from the memory_ref node to each specified node.
    */
-  async linkMemoryToEntities(
+  linkMemoryToEntities(
     memoryNodeId: string,
     entityNodeIds: string[],
     instanceId: string
-  ): Promise<number> {
+  ): number {
     let linkedCount = 0;
 
     for (const entityId of entityNodeIds) {
       try {
-        await this.store.createEdge({
+        this.store.createEdge({
           fromId: memoryNodeId,
           toId: entityId,
           type: "mentions",
@@ -226,91 +195,6 @@ export class MemoryIntegration {
     return this.store.getMemoriesForNode(nodeId);
   }
 
-  /**
-   * Process a batch of extractions from a memory.
-   * This is a convenience method that handles the common pattern of:
-   * 1. Creating/finding nodes
-   * 2. Creating edges between them
-   * 3. Linking to the memory
-   */
-  async processExtractions(
-    memory: MemoryEntry,
-    extraction: ExtractionResult,
-    instanceId: string
-  ): Promise<{
-    memoryNodeId: string | null;
-    nodesCreated: number;
-    edgesCreated: number;
-    nodesFound: number;
-  }> {
-    const result = {
-      memoryNodeId: null as string | null,
-      nodesCreated: 0,
-      edgesCreated: 0,
-      nodesFound: 0,
-    };
-
-    // Create memory_ref node
-    const memoryNode = await this.createMemoryNode(memory, instanceId);
-    if (memoryNode) {
-      result.memoryNodeId = memoryNode.nodeId;
-
-      // Track created nodes
-      const nodeMap = new Map<string, string>();
-
-      // Process nodes
-      for (const nodeInput of extraction.nodes) {
-        const node = await this.findOrCreateNode(
-          {
-            type: nodeInput.type,
-            label: nodeInput.label,
-            description: nodeInput.description,
-            properties: nodeInput.properties,
-            confidence: nodeInput.confidence,
-          },
-          instanceId
-        );
-
-        nodeMap.set(node.label.toLowerCase(), node.id);
-        if (node.isNew) {
-          result.nodesCreated++;
-        } else {
-          result.nodesFound++;
-        }
-
-        // Link memory to this node
-        if (memoryNode.nodeId) {
-          this.store.linkMemoryToNodes(memory.id, [node.id]);
-        }
-      }
-
-      // Process edges
-      for (const edgeInput of extraction.edges) {
-        const fromId = nodeMap.get(edgeInput.fromLabel.toLowerCase());
-        const toId = nodeMap.get(edgeInput.toLabel.toLowerCase());
-
-        if (fromId && toId) {
-          try {
-            await this.store.createEdge({
-              fromId,
-              toId,
-              type: edgeInput.type,
-              customType: edgeInput.customType,
-              properties: edgeInput.properties,
-              weight: edgeInput.weight,
-              evidence: edgeInput.evidence,
-              sourceInstance: instanceId,
-            });
-            result.edgesCreated++;
-          } catch {
-            // Edge might already exist
-          }
-        }
-      }
-    }
-
-    return result;
-  }
 }
 
 /**

@@ -59,10 +59,10 @@ export class GraphRAG {
    * Perform graph-enhanced retrieval.
    * First finds nodes via vector search, then expands via graph traversal.
    */
-  async retrieve(
+  retrieve(
     queryEmbedding: number[],
     options: GraphRAGOptions = {}
-  ): Promise<GraphRAGResult> {
+  ): GraphRAGResult {
     const {
       maxVectorResults = 5,
       traversalDepth = 2,
@@ -71,7 +71,7 @@ export class GraphRAG {
     } = options;
 
     // Step 1: Vector search for primary nodes
-    const searchResults = await this.store.searchNodes({
+    const searchResults = this.store.searchNodes({
       queryEmbedding,
       minScore,
       limit: maxVectorResults,
@@ -323,15 +323,15 @@ export class GraphRAG {
    * Get the "neighborhood" context for a query.
    * Returns nodes that are semantically similar and their immediate neighbors.
    */
-  async getNeighborhood(
+  getNeighborhood(
     queryEmbedding: number[],
     options: GraphRAGOptions = {}
-  ): Promise<{
+  ): {
     nodes: GraphNode[];
     edges: GraphEdge[];
     contextString: string;
-  }> {
-    const result = await this.retrieve(queryEmbedding, {
+  } {
+    const result = this.retrieve(queryEmbedding, {
       ...options,
       traversalDepth: 1,
     });

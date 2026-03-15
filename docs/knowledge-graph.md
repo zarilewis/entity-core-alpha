@@ -64,13 +64,11 @@ This is implemented in `src/graph/rag-integration.ts` and enables queries like "
 
 Memories can be linked to graph nodes via `graph_connect_memory`, creating bidirectional connections between narrative memory and structured knowledge. `graph_get_memory_nodes` retrieves the nodes associated with a specific memory.
 
-The `graph_extract_from_memory` tool uses an LLM to automatically identify entities and relationships within memory content and create the corresponding nodes and edges.
-
 ## Related Source Files
 
 | File | Purpose |
 |------|---------|
-| `src/tools/graph.ts` | Knowledge graph MCP tools (18 tools) |
+| `src/tools/graph.ts` | Knowledge graph MCP tools (17 tools) |
 | `src/graph/mod.ts` | Barrel export |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/types.ts` | GraphNode, GraphEdge, search/traverse option types |

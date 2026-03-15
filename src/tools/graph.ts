@@ -152,13 +152,6 @@ export const GraphWriteTransactionSchema = z.object({
   instanceId: z.string().min(1),
 });
 
-// Extract from memory schema
-export const GraphExtractFromMemorySchema = z.object({
-  memoryContent: z.string().min(1),
-  memoryDate: z.string().optional(),
-  instanceId: z.string().min(1),
-});
-
 // ========================================
 // OUTPUT TYPES
 // ========================================
@@ -383,24 +376,6 @@ export interface GraphWriteTransactionOutput {
   }>;
 }
 
-export interface GraphExtractFromMemoryOutput {
-  success: boolean;
-  message: string;
-  extracted?: {
-    nodes: Array<{
-      id: string;
-      type: string;
-      label: string;
-      description?: string;
-    }>;
-    edges: Array<{
-      fromId: string;
-      toId: string;
-      type: string;
-    }>;
-  };
-}
-
 // ========================================
 // HANDLERS
 // ========================================
@@ -409,9 +384,9 @@ export interface GraphExtractFromMemoryOutput {
  * Create the graph_node_create tool handler.
  */
 export function createGraphNodeCreateHandler(store: GraphStore) {
-  return async (input: z.infer<typeof GraphNodeCreateSchema>): Promise<GraphNodeCreateOutput> => {
+  return (input: z.infer<typeof GraphNodeCreateSchema>): GraphNodeCreateOutput => {
     try {
-      const node = await store.createNode({
+      const node = store.createNode({
         type: input.type,
         label: input.label,
         description: input.description,
@@ -424,7 +399,7 @@ export function createGraphNodeCreateHandler(store: GraphStore) {
 
       // Store embedding if provided
       if (input.embedding) {
-        await store.updateNodeEmbedding(node.id, input.embedding);
+        store.updateNodeEmbedding(node.id, input.embedding);
       }
 
       return {
@@ -454,13 +429,13 @@ export function createGraphNodeCreateHandler(store: GraphStore) {
  */
 export function createGraphNodeGetHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphNodeGetSchema>) => Promise<GraphNodeGetOutput> {
-  return (input: z.infer<typeof GraphNodeGetSchema>): Promise<GraphNodeGetOutput> => {
+): (input: z.infer<typeof GraphNodeGetSchema>) => GraphNodeGetOutput {
+  return (input: z.infer<typeof GraphNodeGetSchema>): GraphNodeGetOutput => {
     const node = store.getNode(input.id);
     if (!node) {
-      return Promise.resolve({ success: false });
+      return ({ success: false });
     }
-    return Promise.resolve({
+    return ({
       success: true,
       node: {
         id: node.id,
@@ -485,9 +460,9 @@ export function createGraphNodeGetHandler(
  * Create the graph_node_update tool handler.
  */
 export function createGraphNodeUpdateHandler(store: GraphStore) {
-  return async (input: z.infer<typeof GraphNodeUpdateSchema>): Promise<GraphNodeUpdateOutput> => {
+  return (input: z.infer<typeof GraphNodeUpdateSchema>): GraphNodeUpdateOutput => {
     try {
-      const node = await store.updateNode(input.id, {
+      const node = store.updateNode(input.id, {
         label: input.label,
         description: input.description,
         properties: input.properties,
@@ -505,7 +480,7 @@ export function createGraphNodeUpdateHandler(store: GraphStore) {
 
       // Update embedding if provided
       if (input.embedding) {
-        await store.updateNodeEmbedding(node.id, input.embedding);
+        store.updateNodeEmbedding(node.id, input.embedding);
       }
 
       return {
@@ -536,11 +511,11 @@ export function createGraphNodeUpdateHandler(store: GraphStore) {
  */
 export function createGraphNodeDeleteHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphNodeDeleteSchema>) => Promise<GraphNodeDeleteOutput> {
-  return (input: z.infer<typeof GraphNodeDeleteSchema>): Promise<GraphNodeDeleteOutput> => {
+): (input: z.infer<typeof GraphNodeDeleteSchema>) => GraphNodeDeleteOutput {
+  return (input: z.infer<typeof GraphNodeDeleteSchema>): GraphNodeDeleteOutput => {
     const node = store.getNode(input.id);
     if (!node) {
-      return Promise.resolve({
+      return ({
         success: false,
         message: `Node not found: ${input.id}`,
       });
@@ -550,7 +525,7 @@ export function createGraphNodeDeleteHandler(
       ? store.permanentlyDeleteNode(input.id)
       : store.deleteNode(input.id);
 
-    return Promise.resolve({
+    return ({
       success: deleted,
       message: deleted
         ? `I have ${input.permanent ? "permanently " : ""}deleted the node "${node.label}"`
@@ -563,8 +538,8 @@ export function createGraphNodeDeleteHandler(
  * Create the graph_node_search tool handler.
  */
 export function createGraphNodeSearchHandler(store: GraphStore) {
-  return async (input: z.infer<typeof GraphNodeSearchSchema>): Promise<GraphNodeSearchOutput> => {
-    const results = await store.searchNodes({
+  return (input: z.infer<typeof GraphNodeSearchSchema>): GraphNodeSearchOutput => {
+    const results = store.searchNodes({
       query: input.query,
       queryEmbedding: input.queryEmbedding,
       type: input.type,
@@ -593,8 +568,8 @@ export function createGraphNodeSearchHandler(store: GraphStore) {
  */
 export function createGraphNodeListHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphNodeListSchema>) => Promise<GraphNodeListOutput> {
-  return (input: z.infer<typeof GraphNodeListSchema>): Promise<GraphNodeListOutput> => {
+): (input: z.infer<typeof GraphNodeListSchema>) => GraphNodeListOutput {
+  return (input: z.infer<typeof GraphNodeListSchema>): GraphNodeListOutput => {
     const nodes = store.listNodes({
       type: input.type,
       includeDeleted: input.includeDeleted,
@@ -608,7 +583,7 @@ export function createGraphNodeListHandler(
       ? (stats.nodesByType[input.type] ?? 0)
       : stats.totalNodes;
 
-    return Promise.resolve({
+    return ({
       nodes: nodes.map((n) => ({
         id: n.id,
         type: n.type,
@@ -628,10 +603,10 @@ export function createGraphNodeListHandler(
  */
 export function createGraphEdgeCreateHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphEdgeCreateSchema>) => Promise<GraphEdgeCreateOutput> {
-  return async (input: z.infer<typeof GraphEdgeCreateSchema>): Promise<GraphEdgeCreateOutput> => {
+): (input: z.infer<typeof GraphEdgeCreateSchema>) => GraphEdgeCreateOutput {
+  return (input: z.infer<typeof GraphEdgeCreateSchema>): GraphEdgeCreateOutput => {
     try {
-      const edge = await store.createEdge({
+      const edge = store.createEdge({
         fromId: input.fromId,
         toId: input.toId,
         type: input.type,
@@ -674,14 +649,14 @@ export function createGraphEdgeCreateHandler(
  */
 export function createGraphEdgeGetHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphEdgeGetSchema>) => Promise<GraphEdgeGetOutput> {
-  return (input: z.infer<typeof GraphEdgeGetSchema>): Promise<GraphEdgeGetOutput> => {
+): (input: z.infer<typeof GraphEdgeGetSchema>) => GraphEdgeGetOutput {
+  return (input: z.infer<typeof GraphEdgeGetSchema>): GraphEdgeGetOutput => {
     if (input.id) {
       const edge = store.getEdge(input.id);
       if (!edge) {
-        return Promise.resolve({ edges: [] });
+        return ({ edges: [] });
       }
-      return Promise.resolve({
+      return ({
         edges: [{
           id: edge.id,
           fromId: edge.fromId,
@@ -706,7 +681,7 @@ export function createGraphEdgeGetHandler(
       onlyValid: input.onlyValid,
     });
 
-    return Promise.resolve({
+    return ({
       edges: edges.map((e) => ({
         id: e.id,
         fromId: e.fromId,
@@ -729,10 +704,10 @@ export function createGraphEdgeGetHandler(
  */
 export function createGraphEdgeUpdateHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphEdgeUpdateSchema>) => Promise<GraphEdgeUpdateOutput> {
-  return async (input: z.infer<typeof GraphEdgeUpdateSchema>): Promise<GraphEdgeUpdateOutput> => {
+): (input: z.infer<typeof GraphEdgeUpdateSchema>) => GraphEdgeUpdateOutput {
+  return (input: z.infer<typeof GraphEdgeUpdateSchema>): GraphEdgeUpdateOutput => {
     try {
-      const edge = await store.updateEdge(input.id, {
+      const edge = store.updateEdge(input.id, {
         type: input.type,
         customType: input.customType,
         properties: input.properties,
@@ -778,18 +753,18 @@ export function createGraphEdgeUpdateHandler(
  */
 export function createGraphEdgeDeleteHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphEdgeDeleteSchema>) => Promise<GraphEdgeDeleteOutput> {
-  return (input: z.infer<typeof GraphEdgeDeleteSchema>): Promise<GraphEdgeDeleteOutput> => {
+): (input: z.infer<typeof GraphEdgeDeleteSchema>) => GraphEdgeDeleteOutput {
+  return (input: z.infer<typeof GraphEdgeDeleteSchema>): GraphEdgeDeleteOutput => {
     const edge = store.getEdge(input.id);
     if (!edge) {
-      return Promise.resolve({
+      return ({
         success: false,
         message: `Edge not found: ${input.id}`,
       });
     }
 
     const deleted = store.deleteEdge(input.id);
-    return Promise.resolve({
+    return ({
       success: deleted,
       message: deleted
         ? `I have deleted the "${edge.type}" relationship`
@@ -803,11 +778,11 @@ export function createGraphEdgeDeleteHandler(
  */
 export function createGraphTraverseHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphTraverseSchema>) => Promise<GraphTraverseOutput> {
-  return (input: z.infer<typeof GraphTraverseSchema>): Promise<GraphTraverseOutput> => {
+): (input: z.infer<typeof GraphTraverseSchema>) => GraphTraverseOutput {
+  return (input: z.infer<typeof GraphTraverseSchema>): GraphTraverseOutput => {
     const startNode = store.getNode(input.startNodeId);
     if (!startNode) {
-      return Promise.resolve({
+      return ({
         startNode: { id: input.startNodeId, type: "unknown", label: "Unknown" },
         results: [],
       });
@@ -821,7 +796,7 @@ export function createGraphTraverseHandler(
       limit: input.limit,
     });
 
-    return Promise.resolve({
+    return ({
       startNode: {
         id: startNode.id,
         type: startNode.type,
@@ -846,11 +821,11 @@ export function createGraphTraverseHandler(
  */
 export function createGraphSubgraphHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphSubgraphSchema>) => Promise<GraphSubgraphOutput> {
-  return (input: z.infer<typeof GraphSubgraphSchema>): Promise<GraphSubgraphOutput> => {
+): (input: z.infer<typeof GraphSubgraphSchema>) => GraphSubgraphOutput {
+  return (input: z.infer<typeof GraphSubgraphSchema>): GraphSubgraphOutput => {
     const subgraph = store.getSubgraph(input.nodeId, input.depth);
 
-    return Promise.resolve({
+    return ({
       nodes: subgraph.nodes.map((n) => ({
         id: n.id,
         type: n.type,
@@ -875,10 +850,10 @@ export function createGraphSubgraphHandler(
  */
 export function createGraphConnectMemoryHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphConnectMemorySchema>) => Promise<GraphConnectMemoryOutput> {
-  return (input: z.infer<typeof GraphConnectMemorySchema>): Promise<GraphConnectMemoryOutput> => {
+): (input: z.infer<typeof GraphConnectMemorySchema>) => GraphConnectMemoryOutput {
+  return (input: z.infer<typeof GraphConnectMemorySchema>): GraphConnectMemoryOutput => {
     store.linkMemoryToNodes(input.memoryId, input.nodeIds);
-    return Promise.resolve({
+    return ({
       success: true,
       message: `I have linked memory ${input.memoryId} to ${input.nodeIds.length} node(s)`,
       linkedCount: input.nodeIds.length,
@@ -891,10 +866,10 @@ export function createGraphConnectMemoryHandler(
  */
 export function createGraphGetMemoryNodesHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphGetMemoryNodesSchema>) => Promise<GraphGetMemoryNodesOutput> {
-  return (input: z.infer<typeof GraphGetMemoryNodesSchema>): Promise<GraphGetMemoryNodesOutput> => {
+): (input: z.infer<typeof GraphGetMemoryNodesSchema>) => GraphGetMemoryNodesOutput {
+  return (input: z.infer<typeof GraphGetMemoryNodesSchema>): GraphGetMemoryNodesOutput => {
     const nodes = store.getNodesForMemory(input.memoryId);
-    return Promise.resolve({
+    return ({
       memoryId: input.memoryId,
       nodes: nodes.map((n) => ({
         id: n.id,
@@ -911,10 +886,10 @@ export function createGraphGetMemoryNodesHandler(
  */
 export function createGraphInsightsHandler(
   store: GraphStore
-): (_input: z.infer<typeof GraphInsightsSchema>) => Promise<GraphInsightsOutput> {
-  return (_input: z.infer<typeof GraphInsightsSchema>): Promise<GraphInsightsOutput> => {
+): (_input: z.infer<typeof GraphInsightsSchema>) => GraphInsightsOutput {
+  return (_input: z.infer<typeof GraphInsightsSchema>): GraphInsightsOutput => {
     const insights = store.discoverInsights();
-    return Promise.resolve({
+    return ({
       insights: insights.map((i) => ({
         type: i.type,
         description: i.description,
@@ -931,10 +906,10 @@ export function createGraphInsightsHandler(
  */
 export function createGraphStatsHandler(
   store: GraphStore
-): (_input: z.infer<typeof GraphStatsSchema>) => Promise<GraphStatsOutput> {
-  return (_input: z.infer<typeof GraphStatsSchema>): Promise<GraphStatsOutput> => {
+): (_input: z.infer<typeof GraphStatsSchema>) => GraphStatsOutput {
+  return (_input: z.infer<typeof GraphStatsSchema>): GraphStatsOutput => {
     const stats = store.getStats();
-    return Promise.resolve({
+    return ({
       ...stats,
       vectorSearchAvailable: store.isVectorSearchAvailable(),
     });
@@ -946,8 +921,8 @@ export function createGraphStatsHandler(
  */
 export function createGraphWriteTransactionHandler(
   store: GraphStore
-): (input: z.infer<typeof GraphWriteTransactionSchema>) => Promise<GraphWriteTransactionOutput> {
-  return async (input: z.infer<typeof GraphWriteTransactionSchema>): Promise<GraphWriteTransactionOutput> => {
+): (input: z.infer<typeof GraphWriteTransactionSchema>) => GraphWriteTransactionOutput {
+  return (input: z.infer<typeof GraphWriteTransactionSchema>): GraphWriteTransactionOutput => {
     try {
       const createdNodes: Array<{ id: string; type: string; label: string }> = [];
       const createdEdges: Array<{ id: string; type: string; fromLabel: string; toLabel: string }> = [];
@@ -956,7 +931,7 @@ export function createGraphWriteTransactionHandler(
       // Create nodes first
       if (input.nodes) {
         for (const nodeInput of input.nodes) {
-          const node = await store.createNode({
+          const node = store.createNode({
             type: nodeInput.type,
             label: nodeInput.label,
             description: nodeInput.description,
@@ -978,14 +953,24 @@ export function createGraphWriteTransactionHandler(
       // Create edges
       if (input.edges) {
         for (const edgeInput of input.edges) {
-          const fromId = labelToId.get(edgeInput.fromLabel);
-          const toId = labelToId.get(edgeInput.toLabel);
+          let fromId = labelToId.get(edgeInput.fromLabel);
+          let toId = labelToId.get(edgeInput.toLabel);
 
-          if (!fromId || !toId) {
-            continue; // Skip edges where nodes weren't created
+          // Fall back to looking up existing nodes by label
+          if (!fromId) {
+            const existing = store.findNodeByLabel(edgeInput.fromLabel);
+            if (existing) fromId = existing.id;
+          }
+          if (!toId) {
+            const existing = store.findNodeByLabel(edgeInput.toLabel);
+            if (existing) toId = existing.id;
           }
 
-          const edge = await store.createEdge({
+          if (!fromId || !toId) {
+            continue; // Skip edges where nodes can't be found
+          }
+
+          const edge = store.createEdge({
             fromId,
             toId,
             type: edgeInput.type,
@@ -1023,23 +1008,6 @@ export function createGraphWriteTransactionHandler(
         edgesCreated: 0,
       };
     }
-  };
-}
-
-/**
- * Create the graph_extract_from_memory tool handler.
- */
-export function createGraphExtractFromMemoryHandler(
-  _store: GraphStore,
-  _llmClient: unknown
-): (input: z.infer<typeof GraphExtractFromMemorySchema>) => Promise<GraphExtractFromMemoryOutput> {
-  return async (_input: z.infer<typeof GraphExtractFromMemorySchema>): Promise<GraphExtractFromMemoryOutput> => {
-    // This is a placeholder implementation
-    // The actual LLM-based extraction would be implemented here
-    return {
-      success: false,
-      message: "Memory extraction is not yet implemented. This feature requires LLM integration to extract entities and relationships from memory content.",
-    };
   };
 }
 
@@ -1132,10 +1100,5 @@ export const graphTools = {
     description:
       "Create multiple nodes and edges in a single transaction. I use this for batch updates to my knowledge graph. IMPORTANT: Write from first-person perspective - use 'me' (type: self) for self-references, 'user' for the person I interact with.",
     inputSchema: GraphWriteTransactionSchema,
-  },
-  "graph/extract_from_memory": {
-    description:
-      "Extract entities and relationships from memory content. I use this to automatically build my knowledge graph from memories. IMPORTANT: Extracted content uses first-person perspective.",
-    inputSchema: GraphExtractFromMemorySchema,
   },
 };

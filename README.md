@@ -34,7 +34,7 @@ The core communicates exclusively over **stdio** using the MCP protocol. Embodim
 | Memory | 3 | Create, search, list memories with instance tagging |
 | Sync | 3 | Pull, push, check status across embodiments |
 | Snapshots | 4 | Create, list, inspect, restore identity backups |
-| Knowledge Graph | 18 | Nodes, edges, traversal, search, batch ops, LLM extraction |
+| Knowledge Graph | 17 | Nodes, edges, traversal, search, batch ops |
 
 Full tool reference: [docs/mcp-tools.md](docs/mcp-tools.md)
 
@@ -52,7 +52,7 @@ entity-core/
 │   │   ├── memory.ts       # Memory operation tools
 │   │   ├── sync.ts         # Sync protocol tools
 │   │   ├── snapshot.ts     # Snapshot management tools
-│   │   └── graph.ts        # Knowledge graph tools (18 tools)
+│   │   └── graph.ts        # Knowledge graph tools (17 tools)
 │   ├── graph/
 │   │   ├── mod.ts          # Barrel export
 │   │   ├── types.ts        # GraphNode, GraphEdge types
@@ -91,11 +91,6 @@ entity-core/
 |----------|---------|-------------|
 | `ENTITY_CORE_DATA_DIR` | `./data` | Directory for identity and memory files |
 | `ENTITY_CORE_SNAPSHOT_RETENTION_DAYS` | `30` | Days to retain snapshots before cleanup |
-| `ENTITY_CORE_LLM_API_KEY` | _(falls back to `ZAI_API_KEY`)_ | API key for LLM-powered graph extraction |
-| `ENTITY_CORE_LLM_BASE_URL` | Z.ai endpoint | LLM API base URL |
-| `ENTITY_CORE_LLM_MODEL` | `glm-4.7` _(falls back to `ZAI_MODEL`)_ | LLM model for extraction |
-| `ENTITY_CORE_LLM_TEMPERATURE` | `0.3` | Sampling temperature for extraction |
-| `ENTITY_CORE_LLM_MAX_TOKENS` | `2000` | Max tokens in extraction responses |
 
 ## Connecting from Psycheros
 

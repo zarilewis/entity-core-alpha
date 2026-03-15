@@ -59,7 +59,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 
 | Document | Purpose |
 |----------|---------|
-| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (30+ tools across 5 domains) |
+| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (33 tools across 5 domains) |
 | [docs/entity-philosophy.md](docs/entity-philosophy.md) | First-person convention rationale, ownership, design philosophy |
 | [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, instance relevance |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | Node/edge types, confidence scoring, temporal tracking, hybrid RAG |

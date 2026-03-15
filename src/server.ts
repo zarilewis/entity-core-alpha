@@ -48,9 +48,7 @@ import {
   createGraphInsightsHandler,
   createGraphStatsHandler,
   createGraphWriteTransactionHandler,
-  createGraphExtractFromMemoryHandler,
 } from "./tools/mod.ts";
-import { createLLMClient } from "./llm/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
 
@@ -65,9 +63,6 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
 
   // Initialize graph store
   const graphStore = new GraphStore(fullConfig.dataDir);
-
-  // Initialize LLM client (optional - for extraction)
-  const llmClient = createLLMClient();
 
   // Create MCP server
   const server = new McpServer({
@@ -770,24 +765,6 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await graphStore.initialize();
       const handler = createGraphWriteTransactionHandler(graphStore);
       const result = await handler({ nodes, edges, instanceId });
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
-    }
-  );
-
-  server.tool(
-    "graph_extract_from_memory",
-    graphTools["graph/extract_from_memory"].description,
-    {
-      memoryContent: graphTools["graph/extract_from_memory"].inputSchema.shape.memoryContent,
-      memoryDate: graphTools["graph/extract_from_memory"].inputSchema.shape.memoryDate,
-      instanceId: graphTools["graph/extract_from_memory"].inputSchema.shape.instanceId,
-    },
-    async ({ memoryContent, memoryDate, instanceId }) => {
-      await graphStore.initialize();
-      const handler = createGraphExtractFromMemoryHandler(graphStore, llmClient);
-      const result = await handler({ memoryContent, memoryDate, instanceId });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };

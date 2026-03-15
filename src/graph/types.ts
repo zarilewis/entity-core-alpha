@@ -6,12 +6,6 @@
  */
 
 /**
- * Perspective tracking - whose knowledge/feeling is this?
- * @deprecated - Simplified to always use "shared"
- */
-export type Perspective = "user" | "entity" | "shared";
-
-/**
  * A node in my knowledge graph.
  * Represents a concept, person, emotion, event, or any entity I know about.
  */

@@ -42,7 +42,6 @@ export {
 export {
   MemoryIntegration,
   createMemoryIntegration,
-  type ExtractionResult,
 } from "./memory-integration.ts";
 
 // RAG Integration

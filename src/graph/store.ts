@@ -6,7 +6,7 @@
  */
 
 import { Database } from "@db/sqlite";
-import { join } from "@std/path";
+import { join, dirname, fromFileUrl } from "@std/path";
 import { ensureDir } from "@std/fs";
 import {
   initializeGraphSchema,
@@ -71,6 +71,9 @@ export class GraphStore {
     // Ensure data directory exists
     await ensureDir(join(this.dbPath, ".."));
 
+    // Load sqlite-vec extension for vector search
+    this.loadVectorExtension();
+
     // Initialize schema
     this.vectorAvailable = initializeGraphSchema(this.db);
 
@@ -114,6 +117,34 @@ export class GraphStore {
         confidence: 1.0,
         properties: {},
       });
+    }
+  }
+
+  /**
+   * Load the sqlite-vec extension into the database connection.
+   * Searches entity-core's own lib/ first, then sibling Psycheros/lib/ (Docker layout).
+   */
+  private loadVectorExtension(): void {
+    const moduleDir = dirname(fromFileUrl(import.meta.url));
+    const candidates = [
+      join(moduleDir, "..", "..", "lib", "vec0"),           // entity-core/lib/vec0
+      join(moduleDir, "..", "..", "..", "Psycheros", "lib", "vec0"), // ../Psycheros/lib/vec0
+    ];
+
+    try {
+      this.db.enableLoadExtension = true;
+      for (const extPath of candidates) {
+        try {
+          this.db.exec(`SELECT load_extension('${extPath}')`);
+          this.db.enableLoadExtension = false;
+          return;
+        } catch {
+          // Try next candidate
+        }
+      }
+      this.db.enableLoadExtension = false;
+    } catch {
+      try { this.db.enableLoadExtension = false; } catch { /* ignore */ }
     }
   }
 
@@ -164,7 +195,7 @@ export class GraphStore {
   /**
    * Create a new node in the graph.
    */
-  createNode(input: CreateNodeInput): Promise<GraphNode> {
+  createNode(input: CreateNodeInput): GraphNode {
     const id = generateId();
     const now = new Date().toISOString();
     const firstLearnedAt = input.firstLearnedAt ?? now;
@@ -210,12 +241,7 @@ export class GraphStore {
     );
     stmt.finalize();
 
-    // Store embedding if provided
-    if (node.embedding && this.vectorAvailable) {
-      this.storeNodeEmbedding(node.id, node.embedding);
-    }
-
-    return Promise.resolve(node);
+    return node;
   }
 
   /**
@@ -252,9 +278,9 @@ export class GraphStore {
   /**
    * Update a node.
    */
-  updateNode(id: string, input: UpdateNodeInput): Promise<GraphNode | null> {
+  updateNode(id: string, input: UpdateNodeInput): GraphNode | null {
     const existing = this.getNode(id);
-    if (!existing) return Promise.resolve(null);
+    if (!existing) return null;
 
     const now = new Date().toISOString();
     const updated: GraphNode = {
@@ -287,18 +313,28 @@ export class GraphStore {
     );
     stmt.finalize();
 
-    return Promise.resolve(updated);
+    return updated;
   }
 
   /**
-   * Soft-delete a node.
+   * Soft-delete a node and its connected edges.
    */
   deleteNode(id: string): boolean {
+    const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       UPDATE graph_nodes SET deleted = 1, updated_at = ? WHERE id = ?
     `);
-    const changes = stmt.run(new Date().toISOString(), id);
+    const changes = stmt.run(now, id);
     stmt.finalize();
+
+    if (changes > 0) {
+      // Also soft-delete all connected edges
+      this.db.exec(
+        "UPDATE graph_edges SET deleted = 1, updated_at = ? WHERE (from_id = ? OR to_id = ?) AND deleted = 0",
+        [now, id, id]
+      );
+    }
+
     return changes > 0;
   }
 
@@ -327,13 +363,13 @@ export class GraphStore {
   /**
    * Search nodes using vector similarity.
    */
-  async searchNodes(options: SearchNodesOptions): Promise<NodeSearchResult[]> {
+  searchNodes(options: SearchNodesOptions): NodeSearchResult[] {
     if (!this.vectorAvailable || (!options.query && !options.queryEmbedding)) {
       // Fall back to text search
       return this.searchNodesByText(options);
     }
 
-    const queryEmbedding = options.queryEmbedding ?? await this.getEmbedding(options.query!);
+    const queryEmbedding = options.queryEmbedding;
     if (!queryEmbedding) {
       return this.searchNodesByText(options);
     }
@@ -382,7 +418,7 @@ export class GraphStore {
         deleted: number;
         distance: number;
       }
-    >(...params, serialized, 1 - minScore, limit);
+    >(...params, serialized, 2 * (1 - minScore), limit);
     stmt.finalize();
 
     return rows.map((row) => ({
@@ -507,6 +543,42 @@ export class GraphStore {
   }
 
   /**
+   * Find a node by label (case-insensitive), optionally filtered by type.
+   * Returns the first match or null.
+   */
+  findNodeByLabel(label: string, type?: string): GraphNode | null {
+    const conditions: string[] = ["deleted = 0", "LOWER(label) = LOWER(?)"];
+    const params: (string | number)[] = [label];
+
+    if (type) {
+      conditions.push("type = ?");
+      params.push(type);
+    }
+
+    const sql = `SELECT * FROM graph_nodes WHERE ${conditions.join(" AND ")} LIMIT 1`;
+    const stmt = this.db.prepare(sql);
+    const row = stmt.get<{
+      id: string;
+      type: string;
+      label: string;
+      description: string;
+      properties: string;
+      source_instance: string;
+      confidence: number;
+      source_memory_id: string | null;
+      created_at: string;
+      updated_at: string;
+      first_learned_at: string | null;
+      last_confirmed_at: string | null;
+      version: number;
+      deleted: number;
+    }>(...params);
+    stmt.finalize();
+
+    return row ? this.rowToNode(row) : null;
+  }
+
+  /**
    * Store an embedding for a node.
    */
   private storeNodeEmbedding(id: string, embedding: number[]): void {
@@ -534,14 +606,13 @@ export class GraphStore {
   /**
    * Update a node's embedding.
    */
-  updateNodeEmbedding(id: string, embedding: number[]): Promise<void> {
+  updateNodeEmbedding(id: string, embedding: number[]): void {
     this.storeNodeEmbedding(id, embedding);
 
     // Update the node's updatedAt
     const stmt = this.db.prepare("UPDATE graph_nodes SET updated_at = ? WHERE id = ?");
     stmt.run(new Date().toISOString(), id);
     stmt.finalize();
-    return Promise.resolve();
   }
 
   // ========================================
@@ -551,7 +622,7 @@ export class GraphStore {
   /**
    * Create a new edge in the graph.
    */
-  createEdge(input: CreateEdgeInput): Promise<GraphEdge> {
+  createEdge(input: CreateEdgeInput): GraphEdge {
     // Verify both nodes exist
     const fromNode = this.getNode(input.fromId);
     const toNode = this.getNode(input.toId);
@@ -604,7 +675,7 @@ export class GraphStore {
     );
     stmt.finalize();
 
-    return Promise.resolve(edge);
+    return edge;
   }
 
   /**
@@ -704,9 +775,9 @@ export class GraphStore {
   /**
    * Update an edge.
    */
-  updateEdge(id: string, input: UpdateEdgeInput): Promise<GraphEdge | null> {
+  updateEdge(id: string, input: UpdateEdgeInput): GraphEdge | null {
     const existing = this.getEdge(id);
-    if (!existing) return Promise.resolve(null);
+    if (!existing) return null;
 
     const now = new Date().toISOString();
     const updated: GraphEdge = {
@@ -743,7 +814,7 @@ export class GraphStore {
     );
     stmt.finalize();
 
-    return Promise.resolve(updated);
+    return updated;
   }
 
   /**
@@ -1049,27 +1120,6 @@ export class GraphStore {
       oldestNode,
       newestNode,
     };
-  }
-
-  // ========================================
-  // EMBEDDING HELPERS
-  // ========================================
-
-  /**
-   * Get an embedding for text.
-   * Uses the same model as Psycheros (all-MiniLM-L6-v2).
-   * This is a placeholder - actual embedding generation should be done
-   * by the calling code that has access to the embedding model.
-   */
-  private getEmbedding(_text: string): Promise<number[] | null> {
-    // Embedding generation is not implemented in the store.
-    // The calling code should generate embeddings and pass them via queryEmbedding.
-    // This method exists for API compatibility but returns null.
-    console.warn(
-      "[GraphStore] getEmbedding called but embedding generation is not implemented. " +
-        "Pass pre-computed embeddings via queryEmbedding parameter."
-    );
-    return Promise.resolve(null);
   }
 
   // ========================================

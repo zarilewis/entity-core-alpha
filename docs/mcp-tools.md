@@ -93,7 +93,6 @@ The knowledge graph tracks relationships between concepts, people, emotions, and
 | Tool | Description |
 |------|-------------|
 | `graph/write_transaction` | Create multiple nodes and edges in a single transaction |
-| `graph/extract_from_memory` | Extract entities and relationships from memory content using LLM |
 
 See [knowledge-graph.md](knowledge-graph.md) for node types, edge types, confidence scoring, and temporal tracking.
 

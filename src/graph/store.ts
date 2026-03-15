@@ -387,7 +387,10 @@ export class GraphStore {
     }
 
     // Vector search with join
-    // sqlite-vec requires v.k = ? to specify KNN count — outer LIMIT alone is not pushed down
+    // sqlite-vec's v.k controls how many KNN candidates are fetched BEFORE the join/filter.
+    // Post-join filters (deleted = 0, type filter, distance threshold) can eliminate candidates,
+    // so we over-fetch by 3x to ensure enough results survive filtering.
+    const knnCount = Math.max(limit * 3, 50);
     const serialized = serializeVector(queryEmbedding);
     const sql = `
       SELECT n.*, v.distance
@@ -420,7 +423,7 @@ export class GraphStore {
         deleted: number;
         distance: number;
       }
-    >(...params, serialized, limit, 2 * (1 - minScore), limit);
+    >(...params, serialized, knnCount, 2 * (1 - minScore), limit);
     stmt.finalize();
 
     return rows.map((row) => ({

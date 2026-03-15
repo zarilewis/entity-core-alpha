@@ -387,6 +387,24 @@ export interface GraphWriteTransactionOutput {
 export function createGraphNodeCreateHandler(store: GraphStore) {
   return (input: z.infer<typeof GraphNodeCreateSchema>): GraphNodeCreateOutput => {
     try {
+      // Duplicate prevention: check for existing node with same label+type
+      const existing = store.findNodeByLabel(input.label, input.type);
+      if (existing) {
+        return {
+          success: true,
+          message: `A "${existing.label}" (${existing.type}) node already exists`,
+          node: {
+            id: existing.id,
+            type: existing.type,
+            label: existing.label,
+            description: existing.description,
+            properties: existing.properties,
+            confidence: existing.confidence,
+            createdAt: existing.createdAt,
+          },
+        };
+      }
+
       const node = store.createNode({
         type: input.type,
         label: input.label,
@@ -931,9 +949,21 @@ export function createGraphWriteTransactionHandler(
       const labelToId = new Map<string, string>();
 
       store.transaction(() => {
-        // Create nodes first
+        // Create nodes first (with duplicate prevention)
         if (input.nodes) {
           for (const nodeInput of input.nodes) {
+            // Check for existing node with same label+type
+            const existing = store.findNodeByLabel(nodeInput.label, nodeInput.type);
+            if (existing) {
+              labelToId.set(existing.label, existing.id);
+              createdNodes.push({
+                id: existing.id,
+                type: existing.type,
+                label: existing.label,
+              });
+              continue;
+            }
+
             const node = store.createNode({
               type: nodeInput.type,
               label: nodeInput.label,

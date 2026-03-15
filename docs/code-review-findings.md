@@ -35,10 +35,38 @@ Full code review covering MCP tool input validation, file storage safety (path t
 - **Fix**: Created shared `SafeFilenameSchema` with regex `/^[a-zA-Z0-9_-]+\.md$/` — enforces alphanumeric filenames at the Zod schema level. Applied to all 5 identity tool schemas. Inline handler checks remain as defense-in-depth.
 - **Why this matters**: This is the most important security pattern in the codebase. Any new identity tools that accept filenames MUST use `SafeFilenameSchema`.
 
+## Data Integrity Fixes (Session 27)
+
+### Graph write transaction not atomic — partial writes on failure (High)
+- **Location**: `src/tools/graph.ts` handler, `src/graph/store.ts`
+- **Problem**: `graph_write_transaction` created nodes and edges in separate loops with no DB transaction. If edge creation failed mid-loop, nodes were already committed. Skipped edges (missing node refs) were silently dropped.
+- **Fix**: Added `transaction()` method to GraphStore (BEGIN/COMMIT/ROLLBACK). Handler now wraps all operations in `store.transaction()`. Skipped edges are collected and reported in the response message.
+
+### Batch graph write missing embedding support (Critical — broken pathway)
+- **Location**: `src/tools/graph.ts:131-153`
+- **Problem**: `GraphWriteTransactionSchema` nodes had no `embedding` field, but Psycheros sends pre-computed embeddings in batch writes. Zod stripped the field silently — nodes created without vector embeddings, invisible to semantic search.
+- **Fix**: Added `embedding: z.array(z.number()).optional()` to schema. Handler now calls `store.updateNodeEmbedding()` after creating each node (matching the single-node `graph_node_create` pattern).
+
+### Soft-deleted nodes still in vector table (High — corrupted search)
+- **Location**: `src/graph/store.ts` — `deleteNode()`
+- **Problem**: Soft-deleting a node marked it `deleted = 1` and soft-deleted edges, but the embedding row in `vec_graph_nodes` was not removed. Vector search returned deleted nodes.
+- **Fix**: `deleteNode()` now removes from `vec_graph_nodes` when `vectorAvailable && changes > 0`.
+
+### Permanent node deletion leaves orphaned edges (High)
+- **Location**: `src/graph/store.ts` — `permanentlyDeleteNode()`
+- **Problem**: Hard-deleted the node row but relied on FK CASCADE for edges. SQLite FK enforcement was never enabled (`PRAGMA foreign_keys` defaults to OFF in Deno's sqlite library), so edges with dangling `from_id`/`to_id` references remained.
+- **Fix**: Added `PRAGMA foreign_keys = ON` in GraphStore constructor. Also added explicit edge deletion before node deletion as defense-in-depth.
+
+### Memory sync overwrites original timestamps (Medium)
+- **Location**: `src/tools/sync.ts:191-192`
+- **Problem**: `sync_push` always set `createdAt`/`updatedAt` to `new Date().toISOString()`, ignoring timestamps from the source embodiment. All synced memories lost their original temporal ordering.
+- **Fix**: Added `createdAt`/`updatedAt` as optional fields in `SyncPushSchema`. Handler now uses incoming timestamps when present, falls back to current time.
+
 ## Confirmed Safe Patterns
 
 - **SQL injection**: All queries in `src/graph/store.ts` use `?` placeholders — no string concatenation
 - **LIKE clauses**: User input wrapped as parameters, not string interpolation
 - **Memory tool inputs**: `granularity` is Zod enum-validated (only daily/weekly/monthly/yearly/significant); `date` uses regex `/^\d{4}(-\d{2})?(-\d{2})?$/` — no path traversal possible
+- **Transaction safety**: Graph write operations use `store.transaction()` for atomicity. Foreign keys enabled at SQLite level.
 
 See also: [security-audit.md](security-audit.md) for the full security assessment.

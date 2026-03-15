@@ -54,6 +54,8 @@ export const SyncPushSchema = z.object({
     sourceInstance: z.string(),
     participatingInstances: z.array(z.string()).optional(),
     version: z.number(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
   })).optional(),
   lastSyncVersion: z.number().optional(),
 });
@@ -185,11 +187,12 @@ export function createSyncPushHandler(store: FileStore) {
 
     // Process memory changes
     for (const change of memoryChanges) {
+      const now = new Date().toISOString();
       const memoryEntry: MemoryEntry = {
         ...change,
         id: `${change.granularity}-${change.date}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: change.createdAt || now,
+        updatedAt: change.updatedAt || now,
       };
 
       // Check for existing memory

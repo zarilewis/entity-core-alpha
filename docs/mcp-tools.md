@@ -92,7 +92,7 @@ The knowledge graph tracks relationships between concepts, people, emotions, and
 
 | Tool | Description |
 |------|-------------|
-| `graph/write_transaction` | Create multiple nodes and edges in a single transaction |
+| `graph/write_transaction` | Create multiple nodes and edges atomically (supports optional `embedding` per node). Reports skipped edges. |
 
 See [knowledge-graph.md](knowledge-graph.md) for node types, edge types, confidence scoring, and temporal tracking.
 

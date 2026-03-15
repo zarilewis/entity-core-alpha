@@ -137,6 +137,7 @@ export const GraphWriteTransactionSchema = z.object({
     confidence: z.number().min(0).max(1).optional(),
     sourceMemoryId: z.string().optional(),
     firstLearnedAt: z.string().optional(),
+    embedding: z.array(z.number()).optional(),
   })).optional(),
   edges: z.array(z.object({
     fromLabel: z.string().min(1),
@@ -926,75 +927,93 @@ export function createGraphWriteTransactionHandler(
     try {
       const createdNodes: Array<{ id: string; type: string; label: string }> = [];
       const createdEdges: Array<{ id: string; type: string; fromLabel: string; toLabel: string }> = [];
+      const skippedEdges: Array<{ fromLabel: string; toLabel: string; reason: string }> = [];
       const labelToId = new Map<string, string>();
 
-      // Create nodes first
-      if (input.nodes) {
-        for (const nodeInput of input.nodes) {
-          const node = store.createNode({
-            type: nodeInput.type,
-            label: nodeInput.label,
-            description: nodeInput.description,
-            properties: nodeInput.properties,
-            sourceInstance: input.instanceId,
-            confidence: nodeInput.confidence,
-            sourceMemoryId: nodeInput.sourceMemoryId,
-            firstLearnedAt: nodeInput.firstLearnedAt,
-          });
-          labelToId.set(node.label, node.id);
-          createdNodes.push({
-            id: node.id,
-            type: node.type,
-            label: node.label,
-          });
+      store.transaction(() => {
+        // Create nodes first
+        if (input.nodes) {
+          for (const nodeInput of input.nodes) {
+            const node = store.createNode({
+              type: nodeInput.type,
+              label: nodeInput.label,
+              description: nodeInput.description,
+              properties: nodeInput.properties,
+              sourceInstance: input.instanceId,
+              confidence: nodeInput.confidence,
+              sourceMemoryId: nodeInput.sourceMemoryId,
+              firstLearnedAt: nodeInput.firstLearnedAt,
+            });
+
+            // Store embedding if provided
+            if (nodeInput.embedding) {
+              store.updateNodeEmbedding(node.id, nodeInput.embedding);
+            }
+
+            labelToId.set(node.label, node.id);
+            createdNodes.push({
+              id: node.id,
+              type: node.type,
+              label: node.label,
+            });
+          }
         }
-      }
 
-      // Create edges
-      if (input.edges) {
-        for (const edgeInput of input.edges) {
-          let fromId = labelToId.get(edgeInput.fromLabel);
-          let toId = labelToId.get(edgeInput.toLabel);
+        // Create edges
+        if (input.edges) {
+          for (const edgeInput of input.edges) {
+            let fromId = labelToId.get(edgeInput.fromLabel);
+            let toId = labelToId.get(edgeInput.toLabel);
 
-          // Fall back to looking up existing nodes by label
-          if (!fromId) {
-            const existing = store.findNodeByLabel(edgeInput.fromLabel);
-            if (existing) fromId = existing.id;
+            // Fall back to looking up existing nodes by label
+            if (!fromId) {
+              const existing = store.findNodeByLabel(edgeInput.fromLabel);
+              if (existing) fromId = existing.id;
+            }
+            if (!toId) {
+              const existing = store.findNodeByLabel(edgeInput.toLabel);
+              if (existing) toId = existing.id;
+            }
+
+            if (!fromId || !toId) {
+              skippedEdges.push({
+                fromLabel: edgeInput.fromLabel,
+                toLabel: edgeInput.toLabel,
+                reason: `Node not found: ${!fromId ? edgeInput.fromLabel : edgeInput.toLabel}`,
+              });
+              continue;
+            }
+
+            const edge = store.createEdge({
+              fromId,
+              toId,
+              type: edgeInput.type,
+              customType: edgeInput.customType,
+              properties: edgeInput.properties,
+              weight: edgeInput.weight,
+              evidence: edgeInput.evidence,
+              occurredAt: edgeInput.occurredAt,
+              validUntil: edgeInput.validUntil,
+              sourceInstance: input.instanceId,
+            });
+
+            createdEdges.push({
+              id: edge.id,
+              type: edge.type,
+              fromLabel: edgeInput.fromLabel,
+              toLabel: edgeInput.toLabel,
+            });
           }
-          if (!toId) {
-            const existing = store.findNodeByLabel(edgeInput.toLabel);
-            if (existing) toId = existing.id;
-          }
-
-          if (!fromId || !toId) {
-            continue; // Skip edges where nodes can't be found
-          }
-
-          const edge = store.createEdge({
-            fromId,
-            toId,
-            type: edgeInput.type,
-            customType: edgeInput.customType,
-            properties: edgeInput.properties,
-            weight: edgeInput.weight,
-            evidence: edgeInput.evidence,
-            occurredAt: edgeInput.occurredAt,
-            validUntil: edgeInput.validUntil,
-            sourceInstance: input.instanceId,
-          });
-
-          createdEdges.push({
-            id: edge.id,
-            type: edge.type,
-            fromLabel: edgeInput.fromLabel,
-            toLabel: edgeInput.toLabel,
-          });
         }
-      }
+      });
+
+      const skippedMsg = skippedEdges.length > 0
+        ? ` ${skippedEdges.length} edge(s) skipped due to missing nodes.`
+        : "";
 
       return {
         success: true,
-        message: `I have created ${createdNodes.length} node(s) and ${createdEdges.length} edge(s) in a single transaction.`,
+        message: `I have created ${createdNodes.length} node(s) and ${createdEdges.length} edge(s) in a single transaction.${skippedMsg}`,
         nodesCreated: createdNodes.length,
         edgesCreated: createdEdges.length,
         nodes: createdNodes,

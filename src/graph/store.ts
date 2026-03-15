@@ -57,6 +57,7 @@ export class GraphStore {
     this.dbPath = join(dataDir, "graph.db");
     // Open database (creates if not exists)
     this.db = new Database(this.dbPath);
+    this.db.exec("PRAGMA foreign_keys = ON");
     this.vectorAvailable = false;
   }
 
@@ -186,6 +187,22 @@ export class GraphStore {
    */
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Run a function inside a database transaction.
+   * Rolls back on error, commits on success.
+   */
+  transaction<T>(fn: () => T): T {
+    this.db.exec("BEGIN");
+    try {
+      const result = fn();
+      this.db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   // ========================================
@@ -333,6 +350,18 @@ export class GraphStore {
         "UPDATE graph_edges SET deleted = 1, updated_at = ? WHERE (from_id = ? OR to_id = ?) AND deleted = 0",
         [now, id, id]
       );
+
+      // Remove from vector table so deleted nodes don't appear in searches
+      if (this.vectorAvailable) {
+        try {
+          this.db.exec(
+            "DELETE FROM vec_graph_nodes WHERE rowid = (SELECT rowid FROM graph_nodes WHERE id = ?)",
+            [id]
+          );
+        } catch {
+          // vec entry may not exist
+        }
+      }
     }
 
     return changes > 0;
@@ -353,6 +382,12 @@ export class GraphStore {
         // Ignore if vector table doesn't have this node
       }
     }
+
+    // Explicitly delete connected edges (defense-in-depth alongside FK CASCADE)
+    this.db.exec(
+      "DELETE FROM graph_edges WHERE from_id = ? OR to_id = ?",
+      [id, id]
+    );
 
     const stmt = this.db.prepare("DELETE FROM graph_nodes WHERE id = ?");
     const changes = stmt.run(id);

@@ -266,7 +266,7 @@ export class GraphStore {
    */
   getNode(id: string): GraphNode | null {
     const stmt = this.db.prepare(`
-      SELECT * FROM graph_nodes WHERE id = ?
+      SELECT * FROM graph_nodes WHERE id = ? AND deleted = 0
     `);
     const row = stmt.get<
       {
@@ -722,7 +722,7 @@ export class GraphStore {
    * Get an edge by ID.
    */
   getEdge(id: string): GraphEdge | null {
-    const stmt = this.db.prepare("SELECT * FROM graph_edges WHERE id = ?");
+    const stmt = this.db.prepare("SELECT * FROM graph_edges WHERE id = ? AND deleted = 0");
     const row = stmt.get<
       {
         id: string;

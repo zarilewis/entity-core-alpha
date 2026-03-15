@@ -64,7 +64,6 @@ export class GraphStore {
   /**
    * Initialize the graph store.
    * Must be called before any operations.
-   * Automatically creates canonical "me" and "user" nodes if they don't exist.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -82,43 +81,7 @@ export class GraphStore {
       verifyVectorTableSync(this.db);
     }
 
-    // Auto-create canonical nodes
-    await this.ensureCanonicalNodes();
-
     this.initialized = true;
-  }
-
-  /**
-   * Ensure the canonical "me" and "user" nodes exist.
-   * These are the core identity nodes for first-person perspective.
-   */
-  private async ensureCanonicalNodes(): Promise<void> {
-    // Check if "me" node exists
-    const selfNodes = this.listNodes({ type: "self", limit: 1 });
-    if (selfNodes.length === 0) {
-      await this.createNode({
-        type: "self",
-        label: "me",
-        description: "This node represents me - the AI entity",
-        sourceInstance: "entity-core",
-        confidence: 1.0,
-        properties: {},
-      });
-    }
-
-    // Check if "user" node exists (person with label "user")
-    const existingNodes = this.listNodes({ type: "person", limit: 100 });
-    const userNodeExists = existingNodes.some((n) => n.label.toLowerCase() === "user");
-    if (!userNodeExists) {
-      await this.createNode({
-        type: "person",
-        label: "user",
-        description: "The person I interact with",
-        sourceInstance: "entity-core",
-        confidence: 1.0,
-        properties: {},
-      });
-    }
   }
 
   /**
@@ -147,32 +110,6 @@ export class GraphStore {
     } catch {
       try { this.db.enableLoadExtension = false; } catch { /* ignore */ }
     }
-  }
-
-  /**
-   * Get the canonical "me" (self) node.
-   * Returns null if not found (should exist after initialization).
-   */
-  getSelfNode(): GraphNode | null {
-    const nodes = this.listNodes({ type: "self", limit: 1 });
-    return nodes.length > 0 ? nodes[0] : null;
-  }
-
-  /**
-   * Get the canonical "user" node.
-   * Returns the person node with label "user" (or whatever name it was updated to).
-   * Returns null if not found.
-   */
-  getUserNode(): GraphNode | null {
-    const nodes = this.listNodes({ type: "person", limit: 100 });
-    // Find the node that was originally created as "user"
-    // It might have been renamed to the user's actual name
-    for (const node of nodes) {
-      if (node.label.toLowerCase() === "user" || node.sourceInstance === "entity-core") {
-        return node;
-      }
-    }
-    return nodes.length > 0 ? nodes[0] : null;
   }
 
   /**

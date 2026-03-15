@@ -12,6 +12,7 @@ Predefined node types provide semantic structure, but arbitrary custom types are
 
 | Type | Description |
 |------|-------------|
+| `self` | The entity itself — use label "me" for self-references |
 | `person` | People the entity knows or knows about |
 | `emotion` | Emotional states and feelings |
 | `event` | Things that happened |

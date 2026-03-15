@@ -59,7 +59,7 @@ The knowledge graph tracks relationships between concepts, people, emotions, and
 
 | Tool | Description |
 |------|-------------|
-| `graph/node_create` | Create a node (person, emotion, event, topic, preference, place, goal, health, boundary, tradition, insight, memory_ref, or custom type) |
+| `graph/node_create` | Create a node (self, person, emotion, event, topic, etc.). Returns existing node if one with same label+type exists (duplicate prevention) |
 | `graph/node_get` | Get a node by ID |
 | `graph/node_update` | Update node properties |
 | `graph/node_delete` | Soft-delete a node |
@@ -92,7 +92,7 @@ The knowledge graph tracks relationships between concepts, people, emotions, and
 
 | Tool | Description |
 |------|-------------|
-| `graph/write_transaction` | Create multiple nodes and edges atomically (supports optional `embedding` per node). Reports skipped edges. |
+| `graph/write_transaction` | Create multiple nodes and edges atomically (supports optional `embedding` per node). Duplicate nodes are resolved by label+type. Reports skipped edges. |
 
 See [knowledge-graph.md](knowledge-graph.md) for node types, edge types, confidence scoring, and temporal tracking.
 

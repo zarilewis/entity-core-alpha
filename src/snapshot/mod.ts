@@ -244,7 +244,7 @@ export async function restoreSnapshot(
   }
 
   // Parse snapshot ID to get category and filename
-  const match = snapshotId.match(/^(.+)\/(.+)_\d{4}-\d{2}-\d{2}T[\d-]+$/);
+  const match = snapshotId.match(/^(.+)\/(.+)_\d{4}-\d{2}-\d{2}T[\d-]+Z$/);
   if (!match) {
     return { success: false, message: "Invalid snapshot ID format", error: "Invalid snapshot ID format" };
   }

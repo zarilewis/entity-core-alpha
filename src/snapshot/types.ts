@@ -12,12 +12,12 @@ export type SnapshotCategory = "self" | "user" | "relationship" | "custom";
 /**
  * Reason for creating a snapshot.
  */
-export type SnapshotReason = "scheduled" | "manual" | "pre-sync" | "pre-replace";
+export type SnapshotReason = "scheduled" | "manual" | "pre-replace";
 
 /**
  * Source of the snapshot.
  */
-export type SnapshotSource = "entity-core";
+export type SnapshotSource = "psycheros" | "entity-core";
 
 /**
  * Metadata for a single snapshot.

@@ -51,6 +51,7 @@ import {
 } from "./tools/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
+import { cleanupOldSnapshots } from "./snapshot/mod.ts";
 
 /**
  * Create and configure the MCP server.
@@ -374,6 +375,9 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createSnapshotCreateHandler(store);
       const result = await handler();
+      // Cleanup old snapshots after creation (matches sync_push behavior)
+      const retentionDays = parseInt(Deno.env.get("ENTITY_CORE_SNAPSHOT_RETENTION_DAYS") || "30");
+      await cleanupOldSnapshots(store, retentionDays);
       return {
         content: [
           {

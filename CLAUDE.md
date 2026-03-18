@@ -37,6 +37,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/snapshot.ts` | Snapshot tools |
 | `src/tools/graph.ts` | Knowledge graph tools (17 tools) |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
+| `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `src/storage/file-store.ts` | File-based storage implementation |
 | `src/sync/versioning.ts` | Vector clocks for distributed versioning |
 

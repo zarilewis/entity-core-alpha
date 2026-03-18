@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { FileStore } from "./storage/mod.ts";
 import { GraphStore } from "./graph/mod.ts";
+import { extractMemoryToGraph } from "./graph/memory-integration.ts";
 import {
   identityTools,
   memoryTools,
@@ -235,6 +236,37 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
         instanceId,
         participatingInstances,
       });
+
+      // After memory is written, extract to graph (fire-and-forget)
+      if (result.success) {
+        extractMemoryToGraph(
+          {
+            id: result.memoryId!,
+            granularity,
+            date,
+            content,
+            chatIds: chatIds ?? [],
+            sourceInstance: instanceId,
+            participatingInstances: participatingInstances ?? [instanceId],
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          graphStore,
+          instanceId,
+        )
+          .then((extraction) => {
+            if (extraction.nodesCreated > 0 || extraction.edgesCreated > 0) {
+              console.error(
+                `[Graph] Extracted from ${result.memoryId}: ${extraction.nodesCreated} nodes, ${extraction.edgesCreated} edges`,
+              );
+            }
+          })
+          .catch((error) => {
+            console.error(`[Graph] Extraction failed for ${result.memoryId}:`, error);
+          });
+      }
+
       return {
         content: [
           {

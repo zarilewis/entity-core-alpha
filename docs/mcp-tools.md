@@ -24,7 +24,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 
 | Tool | Description |
 |------|-------------|
-| `memory/create` | Create a new memory entry with instance tagging |
+| `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background (requires `ENTITY_CORE_LLM_API_KEY`). |
 | `memory/search` | Search my memories with RAG and instance relevance |
 | `memory/list` | List my memories by granularity |
 

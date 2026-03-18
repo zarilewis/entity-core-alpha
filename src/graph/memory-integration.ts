@@ -3,14 +3,210 @@
  *
  * Auto-extracts entities and relationships from memory content
  * and links them to my knowledge graph.
- *
- * Note: The actual entity extraction is designed to be done by the LLM
- * (the entity itself) using the graph tools. This module provides
- * helper utilities for the integration.
  */
 
 import type { GraphStore } from "./store.ts";
 import type { MemoryEntry } from "../types.ts";
+import { createLLMClient } from "../llm/mod.ts";
+
+/**
+ * Result of extracting entities from a memory into the graph.
+ */
+export interface ExtractionResult {
+  nodesCreated: number;
+  edgesCreated: number;
+  memoryNodeId: string | null;
+}
+
+/**
+ * Extract entities and relationships from a memory and create graph nodes/edges.
+ *
+ * This is designed to be called in the background (fire-and-forget) after a
+ * memory is written, so it never blocks the memory_create response.
+ */
+export async function extractMemoryToGraph(
+  memory: MemoryEntry,
+  graphStore: GraphStore,
+  instanceId: string,
+): Promise<ExtractionResult> {
+  const empty: ExtractionResult = { nodesCreated: 0, edgesCreated: 0, memoryNodeId: null };
+
+  // Skip short/trivial content
+  if (memory.content.trim().length < 100) {
+    return empty;
+  }
+
+  // Create LLM client — returns null if no API key configured
+  const llm = createLLMClient();
+  if (!llm) {
+    return empty;
+  }
+
+  // Ensure graph store is initialized
+  await graphStore.initialize();
+
+  // Build extraction prompt (adapted from scripts/extract-memories-to-graph.ts)
+  const dateContext = ` from ${memory.date}`;
+  const prompt = `I analyze my memory${dateContext} and identify entities and relationships worth remembering in my knowledge graph.
+
+I extract:
+- **Entities**: People, emotions, topics, events, preferences, places, goals that matter to me
+- **Relationships**: How these entities connect to each other and to the user
+
+CRITICAL - First-Person Perspective:
+- This graph stores how I see the world, not how someone observes me
+- When referring to myself, ALWAYS use label "me" (type: "self")
+- When referring to the user, use label "user" (or their actual name if mentioned)
+
+Guidelines:
+- Use consistent, simple entity labels (e.g., "user" not "the user")
+- ALWAYS create a "me" entity if I mention myself, my feelings, or my experiences
+- ALWAYS create or reference the "user" entity when the user is mentioned
+- Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
+- Focus on what matters for long-term understanding
+- Skip generic or trivial mentions
+- Entity types should be one of: self, person, emotion, topic, event, preference, place, goal, health, boundary, tradition, insight
+- Relationship types should be one of: feels_about, comforted_by, stressed_by, close_to, mentions, loves, dislikes, helps_with, worsens
+
+Memory content:
+${memory.content.substring(0, 3000)}
+
+I respond in JSON format only (no markdown):
+{
+  "entities": [
+    {"type": "self|person|emotion|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
+  ],
+  "relationships": [
+    {"fromLabel": "...", "toLabel": "...", "type": "feels_about|close_to|mentions|helps_with|...", "evidence": "...", "confidence": 0.7}
+  ]
+}`;
+
+  let extraction: {
+    entities: Array<{ type: string; label: string; description?: string; confidence: number }>;
+    relationships: Array<{ fromLabel: string; toLabel: string; type: string; evidence?: string; confidence: number }>;
+  };
+
+  try {
+    extraction = await llm.completeJSON<{
+      entities: Array<{ type: string; label: string; description?: string; confidence: number }>;
+      relationships: Array<{ fromLabel: string; toLabel: string; type: string; evidence?: string; confidence: number }>;
+    }>(prompt, { temperature: 0.3 });
+  } catch (error) {
+    console.error(`[Graph] LLM extraction failed for ${memory.id}:`, error instanceof Error ? error.message : error);
+    return empty;
+  }
+
+  const entities = extraction.entities || [];
+  const relationships = extraction.relationships || [];
+
+  if (entities.length === 0 && relationships.length === 0) {
+    return empty;
+  }
+
+  // Use a transaction to atomically create all nodes and edges
+  return graphStore.transaction(() => {
+    let nodesCreated = 0;
+    let edgesCreated = 0;
+    let memoryNodeId: string | null = null;
+
+    // Map entity labels to node IDs for edge creation
+    const labelToId = new Map<string, string>();
+
+    // Create or dedup entity nodes
+    for (const entity of entities) {
+      const labelLower = entity.label.toLowerCase();
+      if (labelToId.has(labelLower)) continue;
+
+      const existing = graphStore.findNodeByLabel(entity.label, entity.type);
+      if (existing) {
+        labelToId.set(labelLower, existing.id);
+        continue;
+      }
+
+      const node = graphStore.createNode({
+        type: entity.type,
+        label: entity.label,
+        description: entity.description,
+        sourceInstance: instanceId,
+        confidence: entity.confidence,
+        properties: {},
+      });
+
+      labelToId.set(labelLower, node.id);
+      nodesCreated++;
+    }
+
+    // Create relationship edges
+    for (const rel of relationships) {
+      const fromId = labelToId.get(rel.fromLabel.toLowerCase());
+      const toId = labelToId.get(rel.toLabel.toLowerCase());
+
+      // Also check if the referenced nodes exist in the graph already
+      const resolvedFrom = fromId ?? graphStore.findNodeByLabel(rel.fromLabel)?.id;
+      const resolvedTo = toId ?? graphStore.findNodeByLabel(rel.toLabel)?.id;
+
+      if (!resolvedFrom || !resolvedTo) continue;
+
+      try {
+        graphStore.createEdge({
+          fromId: resolvedFrom,
+          toId: resolvedTo,
+          type: rel.type,
+          sourceInstance: instanceId,
+          weight: rel.confidence,
+          evidence: rel.evidence,
+        });
+        edgesCreated++;
+      } catch {
+        // Edge might already exist
+      }
+    }
+
+    // Create a memory_ref node and link to extracted entities
+    if (nodesCreated > 0 || edgesCreated > 0) {
+      try {
+        const preview = memory.content.slice(0, 50).replace(/\n/g, " ").trim();
+        const memoryNode = graphStore.createNode({
+          type: "memory_ref",
+          label: `${memory.granularity} memory (${memory.date}): ${preview}...`,
+          description: memory.content.slice(0, 500),
+          properties: {
+            granularity: memory.granularity,
+            date: memory.date,
+            chatIds: memory.chatIds,
+          },
+          sourceInstance: instanceId,
+          confidence: 1.0,
+          sourceMemoryId: memory.id,
+        });
+
+        memoryNodeId = memoryNode.id;
+
+        // Create "mentions" edges from memory_ref to each entity
+        for (const [, nodeId] of labelToId) {
+          try {
+            graphStore.createEdge({
+              fromId: memoryNodeId,
+              toId: nodeId,
+              type: "mentions",
+              weight: 1.0,
+              sourceInstance: instanceId,
+            });
+          } catch {
+            // Edge might already exist
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[Graph] Failed to create memory_ref node for ${memory.id}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    return { nodesCreated, edgesCreated, memoryNodeId };
+  });
+}
 
 /**
  * Memory Integration handles connecting memories to the graph.

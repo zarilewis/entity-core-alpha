@@ -58,7 +58,7 @@ entity-core/
 │   │   ├── types.ts        # GraphNode, GraphEdge types
 │   │   ├── store.ts        # GraphStore (SQLite + sqlite-vec)
 │   │   ├── schema.ts       # SQLite schema
-│   │   ├── memory-integration.ts  # Memory-to-graph linking
+│   │   ├── memory-integration.ts  # Auto-extraction + memory-to-graph linking
 │   │   └── rag-integration.ts     # Hybrid vector + graph retrieval
 │   ├── llm/
 │   │   ├── mod.ts          # Barrel export

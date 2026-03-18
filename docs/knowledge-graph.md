@@ -63,7 +63,24 @@ This is implemented in `src/graph/rag-integration.ts` and enables queries like "
 
 ## Memory-Graph Linking
 
-Memories can be linked to graph nodes via `graph_connect_memory`, creating bidirectional connections between narrative memory and structured knowledge. `graph_get_memory_nodes` retrieves the nodes associated with a specific memory.
+### Automatic Extraction
+
+When a memory is created via `memory_create`, entity-core automatically extracts entities and relationships from the memory content and populates the knowledge graph. This runs in the background (fire-and-forget) so it doesn't delay the memory creation response.
+
+The extraction uses the LLM configured via `ENTITY_CORE_LLM_API_KEY` (or `ZAI_API_KEY`). If no API key is set, extraction is silently skipped — the memory is still saved normally.
+
+Extraction behavior:
+- Memories with content under 100 characters are skipped
+- Entities are deduplicated by label+type before creating new nodes
+- All node/edge creation for a single memory happens in one SQLite transaction
+- A `memory_ref` node is created and linked to extracted entities via "mentions" edges
+- Errors are logged but never fail the memory write
+
+The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt and entity/relationship type lists are shared with `scripts/extract-memories-to-graph.ts`.
+
+### Manual Linking
+
+Memories can also be explicitly linked to graph nodes via `graph_connect_memory`, creating bidirectional connections between narrative memory and structured knowledge. `graph_get_memory_nodes` retrieves the nodes associated with a specific memory.
 
 ## Related Source Files
 
@@ -74,5 +91,5 @@ Memories can be linked to graph nodes via `graph_connect_memory`, creating bidir
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/types.ts` | GraphNode, GraphEdge, search/traverse option types |
 | `src/graph/schema.ts` | SQLite schema for graph tables |
-| `src/graph/memory-integration.ts` | Memory-to-graph linking helpers |
+| `src/graph/memory-integration.ts` | Auto-extraction of entities from memories, memory-to-graph linking |
 | `src/graph/rag-integration.ts` | Hybrid vector search + graph traversal |

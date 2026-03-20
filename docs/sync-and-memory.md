@@ -30,19 +30,25 @@ Distributed versioning uses vector clocks (`src/sync/versioning.ts`) to track ca
 
 ## Memory Hierarchy
 
-Memories are organized hierarchically and consolidated over time via Deno cron jobs:
+Memories are organized hierarchically. All memories are **permanently retained** — consolidation tiers produce supplementary summaries, not replacements.
 
 ```
 daily → weekly → monthly → yearly
 ```
 
-| Granularity | Description | Consolidation Trigger |
-|-------------|-------------|----------------------|
+| Granularity | Description | Status |
+|-------------|-------------|--------|
 | **Daily** | Auto-generated conversation summaries | Created during conversations |
-| **Weekly** | Consolidated from daily | Sundays |
-| **Monthly** | Consolidated from weekly | 1st of month |
-| **Yearly** | Consolidated from monthly | January 1st |
-| **Significant** | Permanently remembered events | Never consolidated |
+| **Weekly** | Consolidated from daily | Planned (not yet automated) |
+| **Monthly** | Consolidated from weekly | Planned (not yet automated) |
+| **Yearly** | Consolidated from monthly | Planned (not yet automated) |
+| **Significant** | Permanently remembered events | Created manually |
+
+### Retention Model
+
+All memories are kept permanently across all granularities. Daily memories are never archived or deleted. The consolidation tiers (weekly/monthly/yearly) exist to provide higher-quality distilled summaries for broad queries, while the original daily memories preserve full detail.
+
+SQLite + sqlite-vec scales well for this use case — even a lifetime of daily memories (50 years × 365 days = ~18,000 entries) is trivially small for vector search.
 
 ### Storage Layout
 
@@ -52,19 +58,47 @@ data/memories/
 ├── weekly/         # YYYY-WNN.md
 ├── monthly/        # YYYY-MM.md
 ├── yearly/         # YYYY.md
-├── significant/    # Descriptive filenames
-└── archive/daily/  # Archived daily entries
+└── significant/    # Descriptive filenames
 ```
+
+## Memory Search & Retrieval
+
+`memory_search` uses multi-signal ranking to surface the most relevant memories:
+
+```
+finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15) + (instanceScore × 0.1)
+```
+
+| Signal | Weight | Description |
+|--------|--------|-------------|
+| **Vector similarity** | 0.6 | Semantic match via embeddings (all-MiniLM-L6-v2, 384 dims) |
+| **Recency** | 0.15 | Inverse decay: `1 / (1 + age_days × 0.01)` — half-life ~69 days |
+| **Graph boost** | 0.15 | Boosts memories linked to entity nodes matching the query |
+| **Instance affinity** | 0.1 | +0.1 for memories from the same embodiment |
+
+### How It Works
+
+1. The query is embedded locally using the same model as Psycheros (`Xenova/all-MiniLM-L6-v2`)
+2. Vector search finds `memory_ref` nodes in the knowledge graph matching the query
+3. A parallel search finds entity nodes matching the query (for graph boosting)
+4. Each candidate memory is scored using the multi-signal formula above
+5. Results are sorted by final score and filtered by `minScore`
+
+### Fallback
+
+If vector search is unavailable (sqlite-vec not loaded, embedding model fails), the system falls back to text-based substring matching with instance boosting. The `method` field in results indicates which search method was used.
 
 ### Instance Relevance
 
-When searching memories via `memory_search`, results from the same embodiment are boosted (default: +0.1 to similarity score). This makes memories contextually relevant to the current interface — a memory created in Psycheros is slightly more relevant when searching from Psycheros than from SillyTavern.
+Results from the same embodiment are boosted, making memories contextually relevant to the current interface — a memory created in Psycheros is slightly more relevant when searching from Psycheros than from SillyTavern.
 
 ## Related Source Files
 
 | File | Purpose |
 |------|---------|
 | `src/tools/memory.ts` | Memory MCP tools (create, search, list) |
+| `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |
+| `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `src/tools/sync.ts` | Sync MCP tools (pull, push, status) |
 | `src/sync/versioning.ts` | Vector clock implementation |
 | `src/sync/conflict.ts` | Conflict resolution strategies |

@@ -38,6 +38,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/graph.ts` | Knowledge graph tools (17 tools) |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
+| `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |
 | `src/storage/file-store.ts` | File-based storage implementation |
 | `src/sync/versioning.ts` | Vector clocks for distributed versioning |
 
@@ -62,7 +63,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 |----------|---------|
 | [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (33 tools across 5 domains) |
 | [docs/entity-philosophy.md](docs/entity-philosophy.md) | First-person convention rationale, ownership, design philosophy |
-| [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, instance relevance |
+| [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, retrieval ranking |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | Node/edge types, confidence scoring, temporal tracking, hybrid RAG |
 | [docs/snapshots.md](docs/snapshots.md) | Automatic backups, retention policies, restore procedures |
 | [docs/code-review-findings.md](docs/code-review-findings.md) | Code review bugs fixed, SafeFilenameSchema rationale |

@@ -284,17 +284,19 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     {
       query: memoryTools["memory/search"].inputSchema.shape.query,
       instanceId: memoryTools["memory/search"].inputSchema.shape.instanceId,
+      queryEmbedding: memoryTools["memory/search"].inputSchema.shape.queryEmbedding,
       minScore: memoryTools["memory/search"].inputSchema.shape.minScore,
       maxResults: memoryTools["memory/search"].inputSchema.shape.maxResults,
     },
-    async ({ query, instanceId, minScore, maxResults }) => {
+    async ({ query, instanceId, queryEmbedding, minScore, maxResults }) => {
       await store.initialize();
-      const handler = createMemorySearchHandler(store, {
+      await graphStore.initialize();
+      const handler = createMemorySearchHandler(store, graphStore, {
         instanceBoost: fullConfig.instanceBoost,
         minScore: fullConfig.ragMinScore,
         maxResults: fullConfig.ragMaxChunks,
       });
-      const result = await handler({ query, instanceId, minScore, maxResults });
+      const result = await handler({ query, instanceId, queryEmbedding, minScore, maxResults });
       return {
         content: [
           {

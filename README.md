@@ -60,6 +60,8 @@ entity-core/
 │   │   ├── schema.ts       # SQLite schema
 │   │   ├── memory-integration.ts  # Auto-extraction + memory-to-graph linking
 │   │   └── rag-integration.ts     # Hybrid vector + graph retrieval
+│   ├── embeddings/
+│   │   └── mod.ts          # Local embedding model (all-MiniLM-L6-v2)
 │   ├── llm/
 │   │   ├── mod.ts          # Barrel export
 │   │   └── client.ts       # OpenAI-compatible LLM client
@@ -81,6 +83,8 @@ entity-core/
 │   └── graph.db            # Knowledge graph (SQLite)
 ├── scripts/
 │   ├── extract-memories-to-graph.ts  # Bulk graph population
+│   ├── embed-existing-memories.ts    # Backfill embeddings for existing memories
+│   ├── test-memory-search.ts         # Integration test for vector search
 │   └── remove-perspective.ts         # Utility script
 └── deno.json               # Deno config and task definitions
 ```
@@ -125,7 +129,7 @@ Options:
 
 For detailed information on specific subsystems:
 
-- **[Sync Protocol & Memory System](docs/sync-and-memory.md)** — Batch sync model, conflict resolution, memory hierarchy, instance relevance
+- **[Sync Protocol & Memory System](docs/sync-and-memory.md)** — Batch sync model, conflict resolution, memory hierarchy, retrieval ranking
 - **[Knowledge Graph](docs/knowledge-graph.md)** — Node/edge types, confidence scoring, temporal tracking, hybrid RAG
 - **[Snapshot System](docs/snapshots.md)** — Automatic backups, retention, restore procedures
 - **[Entity Philosophy](docs/entity-philosophy.md)** — First-person convention, ownership, design philosophy

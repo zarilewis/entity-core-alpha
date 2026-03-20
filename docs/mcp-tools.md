@@ -24,11 +24,34 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 
 | Tool | Description |
 |------|-------------|
-| `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background (requires `ENTITY_CORE_LLM_API_KEY`). |
-| `memory/search` | Search my memories with RAG and instance relevance |
+| `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background, including generating an embedding for vector search (requires `ENTITY_CORE_LLM_API_KEY`). |
+| `memory/search` | Search my memories using multi-signal ranking (vector similarity, recency, graph context, instance affinity). Falls back to text matching if embeddings are unavailable. |
 | `memory/list` | List my memories by granularity |
 
-See [sync-and-memory.md](sync-and-memory.md) for the memory hierarchy and instance relevance details.
+### memory/search Inputs
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | Search query text |
+| `instanceId` | string | Yes | Current embodiment ID (for instance affinity boosting) |
+| `queryEmbedding` | number[] | No | Pre-computed query embedding (384 dims). If not provided, entity-core generates one locally. |
+| `minScore` | number | No | Minimum relevance score (0-1), default 0.3 |
+| `maxResults` | number | No | Maximum results (1-50), default 10 |
+
+### memory/search Output
+
+| Field | Description |
+|-------|-------------|
+| `results[].score` | Final multi-signal relevance score |
+| `results[].tier` | Granularity level (daily/weekly/monthly/yearly/significant) |
+| `results[].ageDays` | Memory age in days |
+| `results[].vectorScore` | Raw semantic similarity score (0-1) |
+| `results[].method` | Search method used: `"vector"` or `"text"` |
+| `results[].granularity`, `.date`, `.excerpt`, `.sourceInstance` | Original fields (backward compatible) |
+| `searchMethod` | Overall method: `"vector"` or `"text"` |
+| `vectorAvailable` | Whether vector search was available |
+
+See [sync-and-memory.md](sync-and-memory.md) for the memory hierarchy and retrieval ranking details.
 
 ## Sync Tools
 

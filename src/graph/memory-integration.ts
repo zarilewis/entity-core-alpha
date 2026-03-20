@@ -8,6 +8,7 @@
 import type { GraphStore } from "./store.ts";
 import type { MemoryEntry } from "../types.ts";
 import { createLLMClient } from "../llm/mod.ts";
+import { getEmbedder } from "../embeddings/mod.ts";
 
 /**
  * Result of extracting entities from a memory into the graph.
@@ -169,7 +170,7 @@ I respond in JSON format only (no markdown):
         const memoryNode = graphStore.createNode({
           type: "memory_ref",
           label: `${memory.granularity} memory (${memory.date}): ${preview}...`,
-          description: memory.content.slice(0, 500),
+          description: memory.content.slice(0, 2000),
           properties: {
             granularity: memory.granularity,
             date: memory.date,
@@ -181,6 +182,16 @@ I respond in JSON format only (no markdown):
         });
 
         memoryNodeId = memoryNode.id;
+
+        // Embed the memory content for vector search (fire-and-forget)
+        const embedder = getEmbedder();
+        embedder.embed(memory.content).then((embedding) => {
+          if (embedding) {
+            graphStore.updateNodeEmbedding(memoryNode.id, embedding);
+          }
+        }).catch(() => {
+          // Embedding failure is non-fatal — memory still exists, just not vector-searchable
+        });
 
         // Create "mentions" edges from memory_ref to each entity
         for (const [, nodeId] of labelToId) {
@@ -234,7 +245,7 @@ export class MemoryIntegration {
       const node = this.store.createNode({
         type: "memory_ref",
         label: this.getMemoryLabel(memory),
-        description: memory.content.slice(0, 500),
+        description: memory.content.slice(0, 2000),
         properties: {
           granularity: memory.granularity,
           date: memory.date,
@@ -243,6 +254,16 @@ export class MemoryIntegration {
         sourceInstance: instanceId,
         confidence: 1.0, // Memories are factual records
         sourceMemoryId: memory.id,
+      });
+
+      // Embed the memory content for vector search (fire-and-forget)
+      const embedder = getEmbedder();
+      embedder.embed(memory.content).then((embedding) => {
+        if (embedding) {
+          this.store.updateNodeEmbedding(node.id, embedding);
+        }
+      }).catch(() => {
+        // Embedding failure is non-fatal
       });
 
       return { nodeId: node.id };

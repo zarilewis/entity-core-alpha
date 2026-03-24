@@ -64,7 +64,6 @@ export const GraphEdgeCreateSchema = z.object({
   fromId: z.string().min(1),
   toId: z.string().min(1),
   type: z.string().min(1),
-  customType: z.string().optional(),
   properties: z.record(z.unknown()).optional(),
   weight: z.number().min(0).max(1).optional(),
   evidence: z.string().optional(),
@@ -85,7 +84,6 @@ export const GraphEdgeGetSchema = z.object({
 export const GraphEdgeUpdateSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1).optional(),
-  customType: z.string().optional(),
   properties: z.record(z.unknown()).optional(),
   weight: z.number().min(0).max(1).optional(),
   evidence: z.string().optional(),
@@ -143,7 +141,6 @@ export const GraphWriteTransactionSchema = z.object({
     fromLabel: z.string().min(1),
     toLabel: z.string().min(1),
     type: z.string().min(1),
-    customType: z.string().optional(),
     properties: z.record(z.unknown()).optional(),
     weight: z.number().min(0).max(1).optional(),
     evidence: z.string().optional(),
@@ -245,7 +242,6 @@ export interface GraphEdgeCreateOutput {
     fromId: string;
     toId: string;
     type: string;
-    customType?: string;
     weight: number;
     createdAt: string;
   };
@@ -257,7 +253,6 @@ export interface GraphEdgeGetOutput {
     fromId: string;
     toId: string;
     type: string;
-    customType?: string;
     weight: number;
     evidence?: string;
     occurredAt?: string;
@@ -275,7 +270,6 @@ export interface GraphEdgeUpdateOutput {
     fromId: string;
     toId: string;
     type: string;
-    customType?: string;
     weight: number;
     updatedAt: string;
     version: number;
@@ -318,7 +312,6 @@ export interface GraphSubgraphOutput {
     fromId: string;
     toId: string;
     type: string;
-    customType?: string;
     weight: number;
   }>;
 }
@@ -629,7 +622,6 @@ export function createGraphEdgeCreateHandler(
         fromId: input.fromId,
         toId: input.toId,
         type: input.type,
-        customType: input.customType,
         properties: input.properties,
         weight: input.weight,
         evidence: input.evidence,
@@ -649,7 +641,6 @@ export function createGraphEdgeCreateHandler(
           fromId: edge.fromId,
           toId: edge.toId,
           type: edge.type,
-          customType: edge.customType,
           weight: edge.weight,
           createdAt: edge.createdAt,
         },
@@ -681,7 +672,6 @@ export function createGraphEdgeGetHandler(
           fromId: edge.fromId,
           toId: edge.toId,
           type: edge.type,
-          customType: edge.customType,
           weight: edge.weight,
           evidence: edge.evidence,
           occurredAt: edge.occurredAt,
@@ -706,7 +696,6 @@ export function createGraphEdgeGetHandler(
         fromId: e.fromId,
         toId: e.toId,
         type: e.type,
-        customType: e.customType,
         weight: e.weight,
         evidence: e.evidence,
         occurredAt: e.occurredAt,
@@ -728,7 +717,6 @@ export function createGraphEdgeUpdateHandler(
     try {
       const edge = store.updateEdge(input.id, {
         type: input.type,
-        customType: input.customType,
         properties: input.properties,
         weight: input.weight,
         evidence: input.evidence,
@@ -752,7 +740,6 @@ export function createGraphEdgeUpdateHandler(
           fromId: edge.fromId,
           toId: edge.toId,
           type: edge.type,
-          customType: edge.customType,
           weight: edge.weight,
           updatedAt: edge.updatedAt,
           version: edge.version,
@@ -857,7 +844,6 @@ export function createGraphSubgraphHandler(
         fromId: e.fromId,
         toId: e.toId,
         type: e.type,
-        customType: e.customType,
         weight: e.weight,
       })),
     });
@@ -1018,7 +1004,6 @@ export function createGraphWriteTransactionHandler(
               fromId,
               toId,
               type: edgeInput.type,
-              customType: edgeInput.customType,
               properties: edgeInput.properties,
               weight: edgeInput.weight,
               evidence: edgeInput.evidence,

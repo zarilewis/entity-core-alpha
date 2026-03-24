@@ -7,12 +7,12 @@
 
 /**
  * A node in my knowledge graph.
- * Represents a concept, person, emotion, event, or any entity I know about.
+ * Represents a concept, person, event, or any entity I know about.
  */
 export interface GraphNode {
   /** Unique identifier for this node */
   id: string;
-  /** Type of node (person, emotion, event, memory_ref, topic, preference, etc.) */
+  /** Type of node (person, event, memory_ref, topic, preference, etc.) */
   type: string;
   /** Human-readable label for this node */
   label: string;
@@ -53,10 +53,8 @@ export interface GraphEdge {
   fromId: string;
   /** Target node ID */
   toId: string;
-  /** Type of relationship (feels_about, close_to, mentions, etc.) */
+  /** Type of relationship — any natural language string (e.g., loves, works_at, values) */
   type: string;
-  /** For type="custom", the actual relationship name */
-  customType?: string;
   /** Flexible key-value properties (e.g., {"intensity": 0.8, "context": "..."}) */
   properties: Record<string, unknown>;
   /** Strength of relationship (0-1) */
@@ -85,7 +83,6 @@ export interface GraphEdge {
 export type SuggestedNodeType =
   | "self"
   | "person"
-  | "emotion"
   | "event"
   | "memory_ref"
   | "topic"
@@ -98,38 +95,38 @@ export type SuggestedNodeType =
   | "insight";
 
 /**
- * Suggested edge types (not exhaustive - arbitrary types allowed).
+ * Suggested edge types organized by category.
+ * Edge types are freeform natural language — these are examples for guidance.
+ * Use whatever type best describes the relationship between two nodes.
  */
-export type SuggestedEdgeType =
-  // Emotional
-  | "feels_about"
-  | "comforted_by"
-  | "stressed_by"
-  | "excited_about"
-  // Social
-  | "close_to"
-  | "strained_with"
-  | "family_of"
-  | "friend_of"
-  // Temporal
-  | "happened_when"
-  | "follows"
-  | "precedes"
-  // Memory
-  | "mentioned_in"
-  | "reminds_of"
-  | "associated_with"
-  | "mentions"
-  // Preference
-  | "loves"
-  | "dislikes"
-  | "avoids"
-  | "seeks"
-  // Support
-  | "helps_with"
-  | "worsens"
-  // Custom
-  | "custom";
+export const SUGGESTED_EDGE_VOCABULARY: Record<string, string[]> = {
+  "Attitudes": [
+    "loves", "dislikes", "respects", "proud_of", "worried_about",
+    "nostalgic_for", "intrigued_by", "frustrated_with",
+  ],
+  "Social": [
+    "family_of", "friend_of", "works_with", "met_through",
+    "close_to", "estranged_from",
+  ],
+  "Life/Factual": [
+    "works_at", "lives_in", "studies", "grew_up_in", "attends",
+  ],
+  "Beliefs/Values": [
+    "values", "believes_in", "committed_to", "opposes",
+  ],
+  "Knowledge/Interest": [
+    "skilled_at", "learning", "interested_in", "knows_about",
+  ],
+  "Temporal/Causal": [
+    "happened_during", "caused", "led_to", "part_of",
+  ],
+  "Association": [
+    "reminds_of", "similar_to", "contrasts_with", "associated_with",
+  ],
+  "Memory link": [
+    "mentioned_in", "mentions",
+  ],
+};
 
 /**
  * Input for creating a new node.
@@ -152,7 +149,6 @@ export interface CreateEdgeInput {
   fromId: string;
   toId: string;
   type: string;
-  customType?: string;
   properties?: Record<string, unknown>;
   weight?: number;
   evidence?: string;
@@ -178,7 +174,6 @@ export interface UpdateNodeInput {
  */
 export interface UpdateEdgeInput {
   type?: string;
-  customType?: string;
   properties?: Record<string, unknown>;
   weight?: number;
   evidence?: string;

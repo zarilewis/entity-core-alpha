@@ -206,7 +206,7 @@ export class GraphRAG {
     if (relationships.length > 0) {
       sections.push("\n## Relationships");
       for (const { edge, fromLabel, toLabel } of relationships) {
-        const relType = edge.customType ?? edge.type;
+        const relType = edge.type;
         const weight = `weight: ${Math.round(edge.weight * 100)}%`;
         const evidence = includeEvidence && edge.evidence
           ? `\n  Evidence: ${edge.evidence}`
@@ -242,7 +242,7 @@ export class GraphRAG {
       for (const edge of subgraph.edges) {
         const fromNode = subgraph.nodes.find((n) => n.id === edge.fromId);
         const toNode = subgraph.nodes.find((n) => n.id === edge.toId);
-        const relType = edge.customType ?? edge.type;
+        const relType = edge.type;
         sections.push(
           `- **${fromNode?.label ?? edge.fromId}** → *${relType}* → **${toNode?.label ?? edge.toId}**`
         );

@@ -615,7 +615,6 @@ export class GraphStore {
       fromId: input.fromId,
       toId: input.toId,
       type: input.type,
-      customType: input.customType,
       properties: input.properties ?? {},
       weight: input.weight ?? 0.5,
       evidence: input.evidence,
@@ -639,7 +638,7 @@ export class GraphStore {
       edge.fromId,
       edge.toId,
       edge.type,
-      edge.customType ?? null,
+      null,
       JSON.stringify(edge.properties),
       edge.weight,
       edge.evidence ?? null,
@@ -666,7 +665,7 @@ export class GraphStore {
         from_id: string;
         to_id: string;
         type: string;
-        custom_type: string | null;
+        custom_type?: string | null;
         properties: string;
         weight: number;
         evidence: string | null;
@@ -731,7 +730,7 @@ export class GraphStore {
         from_id: string;
         to_id: string;
         type: string;
-        custom_type: string | null;
+        custom_type?: string | null;
         properties: string;
         weight: number;
         evidence: string | null;
@@ -760,7 +759,6 @@ export class GraphStore {
     const updated: GraphEdge = {
       ...existing,
       type: input.type ?? existing.type,
-      customType: input.customType ?? existing.customType,
       properties: input.properties ?? existing.properties,
       weight: input.weight ?? existing.weight,
       evidence: input.evidence ?? existing.evidence,
@@ -779,7 +777,7 @@ export class GraphStore {
 
     stmt.run(
       updated.type,
-      updated.customType ?? null,
+      null,
       JSON.stringify(updated.properties),
       updated.weight,
       updated.evidence ?? null,
@@ -1151,7 +1149,7 @@ export class GraphStore {
       from_id: string;
       to_id: string;
       type: string;
-      custom_type: string | null;
+      custom_type?: string | null;
       properties: string;
       weight: number;
       evidence: string | null;
@@ -1169,7 +1167,6 @@ export class GraphStore {
       fromId: row.from_id,
       toId: row.to_id,
       type: row.type,
-      customType: row.custom_type ?? undefined,
       properties: this.parseJson(row.properties, {}),
       weight: row.weight,
       evidence: row.evidence ?? undefined,

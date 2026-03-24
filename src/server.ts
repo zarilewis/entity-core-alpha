@@ -622,7 +622,6 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       fromId: graphTools["graph/edge_create"].inputSchema.shape.fromId,
       toId: graphTools["graph/edge_create"].inputSchema.shape.toId,
       type: graphTools["graph/edge_create"].inputSchema.shape.type,
-      customType: graphTools["graph/edge_create"].inputSchema.shape.customType,
       properties: graphTools["graph/edge_create"].inputSchema.shape.properties,
       weight: graphTools["graph/edge_create"].inputSchema.shape.weight,
       evidence: graphTools["graph/edge_create"].inputSchema.shape.evidence,
@@ -630,10 +629,10 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       validUntil: graphTools["graph/edge_create"].inputSchema.shape.validUntil,
       instanceId: graphTools["graph/edge_create"].inputSchema.shape.instanceId,
     },
-    async ({ fromId, toId, type, customType, properties, weight, evidence, occurredAt, validUntil, instanceId }) => {
+    async ({ fromId, toId, type, properties, weight, evidence, occurredAt, validUntil, instanceId }) => {
       await graphStore.initialize();
       const handler = createGraphEdgeCreateHandler(graphStore);
-      const result = await handler({ fromId, toId, type, customType, properties, weight, evidence, occurredAt, validUntil, instanceId });
+      const result = await handler({ fromId, toId, type, properties, weight, evidence, occurredAt, validUntil, instanceId });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };
@@ -667,7 +666,6 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     {
       id: graphTools["graph/edge_update"].inputSchema.shape.id,
       type: graphTools["graph/edge_update"].inputSchema.shape.type,
-      customType: graphTools["graph/edge_update"].inputSchema.shape.customType,
       properties: graphTools["graph/edge_update"].inputSchema.shape.properties,
       weight: graphTools["graph/edge_update"].inputSchema.shape.weight,
       evidence: graphTools["graph/edge_update"].inputSchema.shape.evidence,
@@ -675,10 +673,10 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       lastConfirmedAt: graphTools["graph/edge_update"].inputSchema.shape.lastConfirmedAt,
       instanceId: graphTools["graph/edge_update"].inputSchema.shape.instanceId,
     },
-    async ({ id, type, customType, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId }) => {
+    async ({ id, type, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId }) => {
       await graphStore.initialize();
       const handler = createGraphEdgeUpdateHandler(graphStore);
-      const result = await handler({ id, type, customType, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId });
+      const result = await handler({ id, type, properties, weight, evidence, validUntil, lastConfirmedAt, instanceId });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };

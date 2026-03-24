@@ -23,7 +23,7 @@ export {
   type GraphInsight,
   type GraphStats,
   type SuggestedNodeType,
-  type SuggestedEdgeType,
+  SUGGESTED_EDGE_VOCABULARY,
   EMBEDDING_DIMENSION,
 } from "./types.ts";
 

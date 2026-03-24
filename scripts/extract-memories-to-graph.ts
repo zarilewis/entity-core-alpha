@@ -142,7 +142,7 @@ async function main() {
     const prompt = `I analyze my memory${dateContext} and identify entities and relationships worth remembering in my knowledge graph.
 
 I extract:
-- **Entities**: People, emotions, topics, events, preferences, places, goals that matter to me
+- **Entities**: People, topics, events, preferences, places, goals, concepts that matter to me
 - **Relationships**: How these entities connect to each other and to the user
 
 CRITICAL - First-Person Perspective:
@@ -157,8 +157,8 @@ Guidelines:
 - Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
 - Focus on what matters for long-term understanding
 - Skip generic or trivial mentions
-- Entity types should be one of: self, person, emotion, topic, event, preference, place, goal, health, boundary, tradition, insight
-- Relationship types should be one of: feels_about, comforted_by, stressed_by, close_to, mentions, loves, dislikes, helps_with, worsens
+- Entity types: self, person, topic, event, preference, place, goal, health, boundary, tradition, insight (or any appropriate type)
+- Relationship types: use natural language that best describes the connection. Examples: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, mentioned_in, caused, led_to, part_of, associated_with (or any descriptive type)
 
 Memory content:
 ${content.substring(0, 3000)}
@@ -166,10 +166,10 @@ ${content.substring(0, 3000)}
 I respond in JSON format only (no markdown):
 {
   "entities": [
-    {"type": "self|person|emotion|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
+    {"type": "self|person|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
   ],
   "relationships": [
-    {"fromLabel": "...", "toLabel": "...", "type": "feels_about|close_to|mentions|helps_with|...", "evidence": "...", "confidence": 0.7}
+    {"fromLabel": "...", "toLabel": "...", "type": "loves|works_at|values|close_to|...", "evidence": "...", "confidence": 0.7}
   ]
 }`;
 

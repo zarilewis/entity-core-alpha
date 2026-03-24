@@ -1,6 +1,6 @@
 # Knowledge Graph
 
-The knowledge graph complements the hierarchical memory system by tracking structured relationships between concepts, people, emotions, and events. While memories capture narrative (what happened), the graph captures structure (how things relate).
+The knowledge graph complements the hierarchical memory system by tracking structured relationships between concepts, people, places, and events. While memories capture narrative (what happened), the graph captures structure (how things relate).
 
 ## Storage
 
@@ -14,7 +14,6 @@ Predefined node types provide semantic structure, but arbitrary custom types are
 |------|-------------|
 | `self` | The entity itself — use label "me" for self-references |
 | `person` | People the entity knows or knows about |
-| `emotion` | Emotional states and feelings |
 | `event` | Things that happened |
 | `topic` | Subjects of interest or discussion |
 | `preference` | Likes, dislikes, favorites |
@@ -28,11 +27,20 @@ Predefined node types provide semantic structure, but arbitrary custom types are
 
 ## Edge Types
 
-Edges represent relationships between nodes. Predefined types include:
+Edges represent relationships between nodes. Edge types are **freeform natural language strings** — any type is valid. The following vocabulary is organized by category as guidance for common relationship patterns:
 
-`feels_about`, `close_to`, `mentions`, `helps_with`, `worsens`, `loves`, `dislikes`, `avoids`, `seeks`, `family_of`, `friend_of`, `reminds_of`
+| Category | Examples |
+|----------|---------|
+| Attitudes | `loves`, `dislikes`, `respects`, `proud_of`, `worried_about`, `nostalgic_for`, `intrigued_by`, `frustrated_with` |
+| Social | `family_of`, `friend_of`, `works_with`, `met_through`, `close_to`, `estranged_from` |
+| Life/Factual | `works_at`, `lives_in`, `studies`, `grew_up_in`, `attends` |
+| Beliefs/Values | `values`, `believes_in`, `committed_to`, `opposes` |
+| Knowledge/Interest | `skilled_at`, `learning`, `interested_in`, `knows_about` |
+| Temporal/Causal | `happened_during`, `caused`, `led_to`, `part_of` |
+| Association | `reminds_of`, `similar_to`, `contrasts_with`, `associated_with` |
+| Memory link | `mentioned_in`, `mentions` |
 
-Arbitrary edge types are allowed — these are suggestions, not constraints.
+These are suggestions, not constraints — use whatever type best describes the relationship.
 
 ## Key Concepts
 
@@ -51,7 +59,7 @@ This temporal tracking lets the graph represent knowledge that evolves or expire
 
 ### Dynamic Types
 
-Both node and edge types are extensible. The predefined types are suggestions for common patterns, but any string is accepted as a type. This means the graph can grow to represent domains not anticipated at design time.
+Both node and edge types are freeform strings. Suggested types are provided for guidance (see `SUGGESTED_EDGE_VOCABULARY` in `src/graph/types.ts`), but any string is accepted. This means the graph can grow to represent domains not anticipated at design time.
 
 ## Hybrid Retrieval (RAG Integration)
 

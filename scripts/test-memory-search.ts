@@ -30,7 +30,7 @@ interface TestCase {
 }
 
 // Clean up test data from previous runs
-async function cleanup(store: FileStore, graphStore: GraphStore) {
+async function cleanup(_store: FileStore, graphStore: GraphStore) {
   console.error("[Test] Cleaning up previous test data...");
 
   // Remove test memory files

@@ -23,7 +23,7 @@ interface LLMConfig {
   temperature: number;
 }
 
-async function createLLMClient(): Promise<{ complete: (prompt: string) => Promise<string> } | null> {
+function createLLMClient(): { complete: (prompt: string) => Promise<string> } | null {
   const apiKey = Deno.env.get("ENTITY_CORE_LLM_API_KEY") || Deno.env.get("ZAI_API_KEY");
   if (!apiKey) {
     console.error("No API key found. Set ENTITY_CORE_LLM_API_KEY or ZAI_API_KEY");

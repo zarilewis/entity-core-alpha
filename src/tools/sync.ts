@@ -222,6 +222,7 @@ export function createSyncPushHandler(store: FileStore) {
  * Create the sync/status tool handler.
  */
 export function createSyncStatusHandler() {
+  // deno-lint-ignore require-await
   return async (): Promise<{
     serverVersion: number;
     connectedInstances: Array<{ id: string; lastSync: string }>;

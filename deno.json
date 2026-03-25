@@ -7,6 +7,11 @@
     "start": "deno run -A --unstable-cron src/mod.ts",
     "stop": "pkill -INT -f 'deno.*entity-core' || true"
   },
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
+  },
   "imports": {
     "@std/path": "jsr:@std/path@^1",
     "@std/async": "jsr:@std/async@^1",

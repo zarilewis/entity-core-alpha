@@ -4,10 +4,6 @@
  * This script patches the compiled code to remove perspective field.
  */
 
-import { walk } from "@std/fs/walk";
-
-const GRAPH_DIR = "./src/graph";
-
 // Files to patch
 const files = [
   "./src/graph/memory-integration.ts",

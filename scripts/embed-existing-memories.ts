@@ -76,7 +76,6 @@ async function main() {
       const existingStmt = db.prepare(
         "SELECT rowid FROM vec_graph_nodes WHERE rowid = (SELECT rowid FROM graph_nodes WHERE id = ?)"
       );
-      // deno-lint-ignore no-explicit-any no-unused-vars
       const existing = existingStmt.get(node.id) as { rowid: number } | undefined;
       existingStmt.finalize();
 

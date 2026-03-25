@@ -82,7 +82,8 @@ entity-core/
 │   ├── memories/           # Hierarchical memory store
 │   └── graph.db            # Knowledge graph (SQLite)
 ├── scripts/
-│   ├── extract-memories-to-graph.ts  # Bulk graph population
+│   ├── batch-populate-graph.ts       # Batch populate graph from memories (idempotent)
+│   ├── extract-memories-to-graph.ts  # Legacy bulk graph population
 │   ├── embed-existing-memories.ts    # Backfill embeddings for existing memories
 │   ├── test-memory-search.ts         # Integration test for vector search
 │   └── remove-perspective.ts         # Utility script

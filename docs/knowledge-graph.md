@@ -86,7 +86,32 @@ Extraction behavior:
 - A `memory_ref` node is created and linked to extracted entities via "mentions" edges
 - Errors are logged but never fail the memory write
 
-The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt and entity/relationship type lists are shared with `scripts/extract-memories-to-graph.ts`.
+The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt and entity/relationship type lists are shared with `scripts/batch-populate-graph.ts`.
+
+### Batch Backfill
+
+If the knowledge graph was not active when memories were written, or extraction was temporarily unavailable, `scripts/batch-populate-graph.ts` retroactively processes memory files and populates the graph with the same fidelity as the real-time path (entity nodes, relationship edges, `memory_ref` nodes, "mentions" edges, and embeddings).
+
+```bash
+# Dry run first to inspect extractions
+deno run -A scripts/batch-populate-graph.ts --days 7 --dry-run --verbose
+
+# Process the last 7 days of daily memories
+deno run -A scripts/batch-populate-graph.ts --days 7
+```
+
+The script is **idempotent** — re-running it skips memories that already have a `memory_ref` node, so it's safe to run after an interruption.
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--days N` | Process memories from the last N days | `7` |
+| `--granularity G` | `daily`, `weekly`, `monthly`, `yearly`, `significant`, or `all` | `daily` |
+| `--file PATH` | Process a single file (e.g. `daily/2026-03-17.md`) | — |
+| `--instance ID` | `sourceInstance` label on created nodes/edges | `batch-populate-script` |
+| `--dry-run` | Extract without writing to graph | off |
+| `--verbose` | Show per-entity detail | off |
+
+The script uses the same LLM client, embedder, and extraction prompt as the real-time path. On instances where entity-core has already been running, the embedding model is loaded from the local cache (no re-download).
 
 ### Manual Linking
 
@@ -102,4 +127,5 @@ Memories can also be explicitly linked to graph nodes via `graph_connect_memory`
 | `src/graph/types.ts` | GraphNode, GraphEdge, search/traverse option types |
 | `src/graph/schema.ts` | SQLite schema for graph tables |
 | `src/graph/memory-integration.ts` | Auto-extraction of entities from memories, memory-to-graph linking |
+| `scripts/batch-populate-graph.ts` | Batch backfill: retroactively populate graph from existing memory files |
 | `src/graph/rag-integration.ts` | Hybrid vector search + graph traversal |

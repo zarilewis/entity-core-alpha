@@ -75,7 +75,9 @@ This is implemented in `src/graph/rag-integration.ts` and enables queries like "
 
 When a memory is created via `memory_create`, entity-core automatically extracts entities and relationships from the memory content and populates the knowledge graph. This runs in the background (fire-and-forget) so it doesn't delay the memory creation response.
 
-The extraction uses the LLM configured via `ENTITY_CORE_LLM_API_KEY` (or `ZAI_API_KEY`). If no API key is set, extraction is silently skipped — the memory is still saved normally.
+The extraction uses the LLM configured via `ENTITY_CORE_LLM_API_KEY` (or `ZAI_API_KEY`), with the endpoint from `ENTITY_CORE_LLM_BASE_URL` (or `ZAI_BASE_URL`). If no API key is set, extraction is silently skipped — the memory is still saved normally.
+
+**Note**: When entity-core is spawned as a subprocess by Psycheros, Psycheros automatically forwards its `ZAI_*` LLM environment variables. If running entity-core standalone, you must set `ENTITY_CORE_LLM_API_KEY` or `ZAI_API_KEY` yourself for extraction to work.
 
 Extraction behavior:
 - Memories with content under 100 characters are skipped

@@ -95,6 +95,11 @@ entity-core/
 |----------|---------|-------------|
 | `ENTITY_CORE_DATA_DIR` | `./data` | Directory for identity and memory files |
 | `ENTITY_CORE_SNAPSHOT_RETENTION_DAYS` | `30` | Days to retain snapshots before cleanup |
+| `ENTITY_CORE_LLM_API_KEY` | — | API key for LLM (memory-to-graph extraction). Falls back to `ZAI_API_KEY` |
+| `ENTITY_CORE_LLM_BASE_URL` | — | LLM API endpoint. Falls back to `ZAI_BASE_URL`, then `https://api.z.ai/api/coding/paas/v4/chat/completions` |
+| `ENTITY_CORE_LLM_MODEL` | `glm-4.7` | Model for extraction tasks. Falls back to `ZAI_MODEL` |
+| `ENTITY_CORE_LLM_TEMPERATURE` | `0.3` | Temperature for extraction tasks |
+| `ENTITY_CORE_LLM_MAX_TOKENS` | `2000` | Max tokens for extraction responses |
 
 ## Connecting from Psycheros
 

@@ -15,6 +15,7 @@ Embodiments sync with entity-core using a batch sync model:
 
 - **Identity files**: Last-write-wins with instance priority tiebreaker
 - **Memories**: Both versions preserved (append-only), consolidated later
+- **Memory edits**: The `memory/update` tool intentionally overwrites content (no merge). This is for user-initiated corrections from the Memories UI. The `editedBy` field and version bump distinguish edits from sync-generated content.
 
 ### Instance Tagging
 

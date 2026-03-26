@@ -48,6 +48,42 @@ export const MemoryListSchema = z.object({
 });
 
 /**
+ * Input schema for memory/read tool.
+ */
+export const MemoryReadSchema = z.object({
+  granularity: GranularitySchema,
+  date: z.string().regex(/^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$/),
+});
+
+/**
+ * Input schema for memory/update tool.
+ */
+export const MemoryUpdateSchema = z.object({
+  granularity: GranularitySchema,
+  date: z.string().regex(/^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$/),
+  content: z.string().min(1),
+  editedBy: z.string().optional(),
+});
+
+/**
+ * Output type for memory/read tool.
+ */
+export interface MemoryReadOutput {
+  success: boolean;
+  memory?: MemoryEntry;
+  message?: string;
+}
+
+/**
+ * Output type for memory/update tool.
+ */
+export interface MemoryUpdateOutput {
+  success: boolean;
+  message: string;
+  memoryId?: string;
+}
+
+/**
  * Output type for memory/create tool.
  */
 export interface MemoryCreateOutput {
@@ -424,6 +460,65 @@ export function createMemoryListHandler(store: FileStore) {
 }
 
 /**
+ * Create the memory/read tool handler.
+ */
+export function createMemoryReadHandler(store: FileStore) {
+  return async (input: z.infer<typeof MemoryReadSchema>): Promise<MemoryReadOutput> => {
+    const { granularity, date } = input;
+
+    const memory = await store.readMemory(granularity, date);
+
+    if (!memory) {
+      return {
+        success: false,
+        message: `No memory found for ${granularity}/${date}.`,
+      };
+    }
+
+    return {
+      success: true,
+      memory,
+    };
+  };
+}
+
+/**
+ * Create the memory/update tool handler.
+ *
+ * Explicitly overwrites a memory (no append merge).
+ * Sets editedBy field for future conflict resolution awareness.
+ */
+export function createMemoryUpdateHandler(store: FileStore) {
+  return async (input: z.infer<typeof MemoryUpdateSchema>): Promise<MemoryUpdateOutput> => {
+    const { granularity, date, content, editedBy } = input;
+
+    // Read existing memory to preserve metadata
+    const existing = await store.readMemory(granularity, date);
+
+    const memory: MemoryEntry = {
+      id: `${granularity}-${date}`,
+      granularity: granularity as Granularity,
+      date,
+      content,
+      chatIds: existing?.chatIds ?? [],
+      sourceInstance: existing?.sourceInstance ?? (editedBy ?? "unknown"),
+      participatingInstances: existing?.participatingInstances,
+      version: (existing?.version ?? 0) + 1,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await store.writeMemory(memory);
+
+    return {
+      success: true,
+      message: `I have updated the ${granularity} memory for ${date}.`,
+      memoryId: memory.id,
+    };
+  };
+}
+
+/**
  * Tool definitions for MCP registration.
  */
 export const memoryTools = {
@@ -441,5 +536,15 @@ export const memoryTools = {
     description:
       "List my memories, optionally filtered by granularity. Use this to see what I've been remembering.",
     inputSchema: MemoryListSchema,
+  },
+  "memory/read": {
+    description:
+      "Read a single memory entry by granularity and date. Returns the full content and metadata.",
+    inputSchema: MemoryReadSchema,
+  },
+  "memory/update": {
+    description:
+      "Overwrite a memory entry. Use this to correct inaccuracies in my recorded memories. Unlike memory/create, this replaces content entirely (no append merge). Tracks who made the edit via editedBy.",
+    inputSchema: MemoryUpdateSchema,
   },
 };

@@ -28,12 +28,18 @@ export {
   createMemoryCreateHandler,
   createMemorySearchHandler,
   createMemoryListHandler,
+  createMemoryReadHandler,
+  createMemoryUpdateHandler,
   MemoryCreateSchema,
   MemorySearchSchema,
   MemoryListSchema,
+  MemoryReadSchema,
+  MemoryUpdateSchema,
   type MemoryCreateOutput,
   type MemorySearchOutput,
   type MemoryListOutput,
+  type MemoryReadOutput,
+  type MemoryUpdateOutput,
 } from "./memory.ts";
 
 export {

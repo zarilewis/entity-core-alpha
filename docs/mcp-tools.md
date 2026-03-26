@@ -27,6 +27,48 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background, including generating an embedding for vector search (requires `ENTITY_CORE_LLM_API_KEY`). |
 | `memory/search` | Search my memories using multi-signal ranking (vector similarity, recency, graph context, instance affinity). Falls back to text matching if embeddings are unavailable. |
 | `memory/list` | List my memories by granularity |
+| `memory/read` | Read a single memory entry by granularity and date. Returns full content and metadata (source instance, version, timestamps). |
+| `memory/update` | Overwrite a memory entry (no append merge). Use to correct inaccuracies in recorded memories. Preserves existing metadata (source instance, chat IDs), increments version, sets `updatedAt`. Re-extracts entities to the knowledge graph in the background. Tracks who made the edit via `editedBy`. |
+
+### memory/create Inputs
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `granularity` | enum | Yes | One of: `daily`, `weekly`, `monthly`, `yearly`, `significant` |
+| `date` | string | Yes | Date string matching `^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$` |
+| `content` | string | Yes | Memory content (first-person perspective) |
+| `chatIds` | string[] | No | Related conversation IDs |
+| `instanceId` | string | Yes | Current embodiment ID |
+| `participatingInstances` | string[] | No | Other embodiments involved |
+
+### memory/read Inputs
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `granularity` | enum | Yes | One of: `daily`, `weekly`, `monthly`, `yearly`, `significant` |
+| `date` | string | Yes | Date string matching `^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$` |
+
+### memory/read Output
+
+Returns the full `MemoryEntry` object on success:
+- `id`, `granularity`, `date`, `content`, `chatIds`, `sourceInstance`, `participatingInstances`, `version`, `createdAt`, `updatedAt`
+
+### memory/update Inputs
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `granularity` | enum | Yes | One of: `daily`, `weekly`, `monthly`, `yearly`, `significant` |
+| `date` | string | Yes | Date string matching `^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$` |
+| `content` | string | Yes | New memory content (replaces existing entirely) |
+| `editedBy` | string | No | Identifier for who made the edit (e.g., embodiment ID or "human") |
+
+### memory/update vs memory/create
+
+- `memory/create` is for the entity recording new memories from conversations
+- `memory/update` is for correcting existing memories (user-initiated edits from the Memories UI)
+- `memory/update` preserves existing metadata (source instance, chat IDs, participating instances) but overwrites content entirely
+- `memory/update` increments version and sets `updatedAt` to now
+- Both tools re-extract entities to the knowledge graph in the background
 
 ### memory/search Inputs
 

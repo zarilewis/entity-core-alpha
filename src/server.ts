@@ -25,6 +25,8 @@ import {
   createMemoryCreateHandler,
   createMemorySearchHandler,
   createMemoryListHandler,
+  createMemoryReadHandler,
+  createMemoryUpdateHandler,
   createSyncPullHandler,
   createSyncPushHandler,
   createSyncStatusHandler,
@@ -319,6 +321,83 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createMemoryListHandler(store);
       const result = await handler({ granularity, limit });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "memory_read",
+    memoryTools["memory/read"].description,
+    {
+      granularity: memoryTools["memory/read"].inputSchema.shape.granularity,
+      date: memoryTools["memory/read"].inputSchema.shape.date,
+    },
+    async ({ granularity, date }) => {
+      await store.initialize();
+      const handler = createMemoryReadHandler(store);
+      const result = await handler({ granularity, date });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "memory_update",
+    memoryTools["memory/update"].description,
+    {
+      granularity: memoryTools["memory/update"].inputSchema.shape.granularity,
+      date: memoryTools["memory/update"].inputSchema.shape.date,
+      content: memoryTools["memory/update"].inputSchema.shape.content,
+      editedBy: memoryTools["memory/update"].inputSchema.shape.editedBy,
+    },
+    async ({ granularity, date, content, editedBy }) => {
+      await store.initialize();
+      const handler = createMemoryUpdateHandler(store);
+      const result = await handler({ granularity, date, content, editedBy });
+
+      // After memory is updated, re-extract to graph (fire-and-forget)
+      if (result.success) {
+        extractMemoryToGraph(
+          {
+            id: result.memoryId!,
+            granularity,
+            date,
+            content,
+            chatIds: [],
+            sourceInstance: editedBy ?? "unknown",
+            participatingInstances: [],
+            version: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          graphStore,
+          editedBy ?? "unknown",
+        )
+          .then((extraction) => {
+            if (extraction.nodesCreated > 0 || extraction.edgesCreated > 0) {
+              console.error(
+                `[Graph] Re-extracted from ${result.memoryId}: ${extraction.nodesCreated} nodes, ${extraction.edgesCreated} edges`,
+              );
+            }
+          })
+          .catch((error) => {
+            console.error(`[Graph] Re-extraction failed for ${result.memoryId}:`, error);
+          });
+      }
+
       return {
         content: [
           {

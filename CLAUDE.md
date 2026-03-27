@@ -37,6 +37,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/snapshot.ts` | Snapshot tools |
 | `src/tools/graph.ts` | Knowledge graph tools (17 tools) |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
+| `src/graph/extraction-prompt.ts` | Shared extraction prompt, significance framework, semantic dedup |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `scripts/batch-populate-graph.ts` | Batch backfill graph from existing memory files |
 | `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |

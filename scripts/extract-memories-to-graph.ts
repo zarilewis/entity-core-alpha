@@ -9,6 +9,14 @@
 import { walk } from "@std/fs/walk";
 import { join } from "@std/path/join";
 import { GraphStore } from "../src/graph/store.ts";
+import { getEmbedder } from "../src/embeddings/mod.ts";
+import {
+  buildExtractionPrompt,
+  findSemanticDuplicate,
+  confirmNode,
+  type ExtractionType,
+  MIN_CONFIDENCE,
+} from "../src/graph/extraction-prompt.ts";
 
 const DATA_DIR = Deno.env.get("ENTITY_CORE_DATA_DIR") || "./data";
 const DRY_RUN = Deno.args.includes("--dry-run");
@@ -87,6 +95,11 @@ async function main() {
   await graphStore.initialize();
   console.log(`Graph store opened: ${DATA_DIR}\n`);
 
+  // Initialize embedder for semantic dedup
+  const embedder = getEmbedder();
+  const embedderInitPromise = embedder.initialize();
+  console.log("Embedder model loading...\n");
+
   // Find memory files
   const memoriesDir = join(DATA_DIR, "memories");
   const memoryFiles: string[] = [];
@@ -137,48 +150,15 @@ async function main() {
     const dateMatch = filePath.match(/(\d{4}-\d{2}-\d{2})/);
     const memoryDate = dateMatch ? dateMatch[1] : undefined;
 
-    // Build extraction prompt
-    const dateContext = memoryDate ? ` from ${memoryDate}` : "";
-    const prompt = `I analyze my memory${dateContext} and identify entities and relationships worth remembering in my knowledge graph.
-
-I extract:
-- **Entities**: People, topics, events, preferences, places, goals, concepts that matter to me
-- **Relationships**: How these entities connect to each other and to the user
-
-CRITICAL - First-Person Perspective:
-- This graph stores how I see the world, not how someone observes me
-- When referring to myself, ALWAYS use label "me" (type: "self")
-- When referring to the user, use label "user" (or their actual name if mentioned)
-
-Guidelines:
-- Use consistent, simple entity labels (e.g., "user" not "the user")
-- ALWAYS create a "me" entity if I mention myself, my feelings, or my experiences
-- ALWAYS create or reference the "user" entity when the user is mentioned
-- Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
-- Focus on what matters for long-term understanding
-- Skip generic or trivial mentions
-- Entity types: self, person, topic, event, preference, place, goal, health, boundary, tradition, insight (or any appropriate type)
-- Relationship types: use natural language that best describes the connection. Examples: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, mentioned_in, caused, led_to, part_of, associated_with (or any descriptive type)
-
-Memory content:
-${content.substring(0, 3000)}
-
-I respond in JSON format only (no markdown):
-{
-  "entities": [
-    {"type": "self|person|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
-  ],
-  "relationships": [
-    {"fromLabel": "...", "toLabel": "...", "type": "loves|works_at|values|close_to|...", "evidence": "...", "confidence": 0.7}
-  ]
-}`;
+    // Build extraction prompt from shared module
+    const prompt = buildExtractionPrompt(content, memoryDate);
 
     try {
       console.log("  Calling LLM...");
       const response = await llmClient.complete(prompt);
 
       // Parse response
-      let extraction: { entities: unknown[]; relationships: unknown[] };
+      let extraction: ExtractionType;
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -192,21 +172,20 @@ I respond in JSON format only (no markdown):
         continue;
       }
 
-      const entities = (extraction.entities || []) as Array<{
-        type: string;
-        label: string;
-        description?: string;
-        confidence: number;
-      }>;
-      const relationships = (extraction.relationships || []) as Array<{
-        fromLabel: string;
-        toLabel: string;
-        type: string;
-        evidence?: string;
-        confidence: number;
-      }>;
+      // Apply confidence floor
+      const rawEntities = extraction.entities || [];
+      const rawRelationships = extraction.relationships || [];
+      const entities = rawEntities.filter((e) => e.confidence >= MIN_CONFIDENCE);
+      const relationships = rawRelationships.filter((r) => r.confidence >= MIN_CONFIDENCE);
 
-      console.log(`  Extracted ${entities.length} entities, ${relationships.length} relationships`);
+      const droppedEntities = rawEntities.length - entities.length;
+      const droppedRels = rawRelationships.length - relationships.length;
+      console.log(
+        `  Extracted ${entities.length} entities, ${relationships.length} relationships` +
+          (droppedEntities + droppedRels > 0
+            ? ` (${droppedEntities} entities, ${droppedRels} relations below confidence floor)`
+            : ""),
+      );
 
       if (DRY_RUN) {
         if (entities.length > 0) {
@@ -216,15 +195,39 @@ I respond in JSON format only (no markdown):
           }
         }
       } else {
-        // Create nodes
+        // Ensure embedder is ready for semantic dedup
+        await embedderInitPromise;
+
+        // Resolve entities — dedup via semantic similarity
+        const newEntities: ExtractionType["entities"] = [];
         for (const entity of entities) {
           const labelLower = entity.label.toLowerCase();
 
-          // Skip if already exists
+          // Skip if already seen in this run
           if (labelToId.has(labelLower)) {
             console.log(`    [exists] ${entity.label}`);
             continue;
           }
+
+          // Semantic dedup against graph
+          const existing = await findSemanticDuplicate(graphStore, embedder, {
+            label: entity.label,
+            type: entity.type,
+          });
+
+          if (existing) {
+            labelToId.set(labelLower, existing.id);
+            confirmNode(graphStore, existing.id, entity.confidence, existing.confidence, "extract-memories-script");
+            console.log(`    [semantic dedup] ${entity.label} -> existing ${existing.id}`);
+            continue;
+          }
+
+          newEntities.push(entity);
+        }
+
+        // Create new nodes
+        for (const entity of newEntities) {
+          const labelLower = entity.label.toLowerCase();
 
           const node = await graphStore.createNode({
             type: entity.type,

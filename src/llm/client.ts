@@ -240,7 +240,7 @@ export function createLLMClient(): LLMClient | null {
   const temperature = temperatureStr ? parseFloat(temperatureStr) : 0.3; // Lower temp for extraction
 
   const maxTokensStr = Deno.env.get("ENTITY_CORE_LLM_MAX_TOKENS");
-  const maxTokens = maxTokensStr ? parseInt(maxTokensStr, 10) : 2000;
+  const maxTokens = maxTokensStr ? parseInt(maxTokensStr, 10) : 4000;
 
   const config: LLMConfig = {
     apiKey,

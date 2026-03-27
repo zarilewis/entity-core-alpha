@@ -38,6 +38,16 @@ export {
   verifyVectorTableSync,
 } from "./schema.ts";
 
+// Extraction prompt & dedup
+export {
+  EXTRACTION_SYSTEM_PROMPT,
+  buildExtractionPrompt,
+  confirmNode,
+  findSemanticDuplicate,
+  type ExtractionType,
+  MIN_CONFIDENCE,
+} from "./extraction-prompt.ts";
+
 // Memory Integration
 export {
   MemoryIntegration,

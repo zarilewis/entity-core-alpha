@@ -7,8 +7,15 @@
 
 import type { GraphStore } from "./store.ts";
 import type { MemoryEntry } from "../types.ts";
+import type { ExtractionType } from "./extraction-prompt.ts";
 import { createLLMClient } from "../llm/mod.ts";
 import { getEmbedder } from "../embeddings/mod.ts";
+import {
+  buildExtractionPrompt,
+  findSemanticDuplicate,
+  confirmNode,
+  MIN_CONFIDENCE,
+} from "./extraction-prompt.ts";
 
 /**
  * Result of extracting entities from a memory into the graph.
@@ -46,83 +53,62 @@ export async function extractMemoryToGraph(
   // Ensure graph store is initialized
   await graphStore.initialize();
 
-  // Build extraction prompt (adapted from scripts/extract-memories-to-graph.ts)
-  const dateContext = ` from ${memory.date}`;
-  const prompt = `I analyze my memory${dateContext} and identify entities and relationships worth remembering in my knowledge graph.
+  // Build extraction prompt from shared module
+  const prompt = buildExtractionPrompt(memory.content, memory.date);
 
-I extract:
-- **Entities**: People, topics, events, preferences, places, goals, concepts that matter to me
-- **Relationships**: How these entities connect to each other and to the user
-
-CRITICAL - First-Person Perspective:
-- This graph stores how I see the world, not how someone observes me
-- When referring to myself, ALWAYS use label "me" (type: "self")
-- When referring to the user, use label "user" (or their actual name if mentioned)
-
-Guidelines:
-- Use consistent, simple entity labels (e.g., "user" not "the user")
-- ALWAYS create a "me" entity if I mention myself, my feelings, or my experiences
-- ALWAYS create or reference the "user" entity when the user is mentioned
-- Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
-- Focus on what matters for long-term understanding
-- Skip generic or trivial mentions
-- Entity types: self, person, topic, event, preference, place, goal, health, boundary, tradition, insight (or any appropriate type)
-- Relationship types: use natural language that best describes the connection. Examples: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, mentioned_in, caused, led_to, part_of, associated_with (or any descriptive type)
-
-Memory content:
-${memory.content.substring(0, 3000)}
-
-I respond in JSON format only (no markdown):
-{
-  "entities": [
-    {"type": "self|person|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
-  ],
-  "relationships": [
-    {"fromLabel": "...", "toLabel": "...", "type": "loves|works_at|values|close_to|...", "evidence": "...", "confidence": 0.7}
-  ]
-}`;
-
-  let extraction: {
-    entities: Array<{ type: string; label: string; description?: string; confidence: number }>;
-    relationships: Array<{ fromLabel: string; toLabel: string; type: string; evidence?: string; confidence: number }>;
-  };
+  let extraction: ExtractionType;
 
   try {
-    extraction = await llm.completeJSON<{
-      entities: Array<{ type: string; label: string; description?: string; confidence: number }>;
-      relationships: Array<{ fromLabel: string; toLabel: string; type: string; evidence?: string; confidence: number }>;
-    }>(prompt, { temperature: 0.3 });
+    extraction = await llm.completeJSON<ExtractionType>(prompt, { temperature: 0.3 });
   } catch (error) {
     console.error(`[Graph] LLM extraction failed for ${memory.id}:`, error instanceof Error ? error.message : error);
     return empty;
   }
 
-  const entities = extraction.entities || [];
-  const relationships = extraction.relationships || [];
+  // Apply confidence floor — silently drop low-confidence extractions
+  const entities = (extraction.entities || [])
+    .filter((e) => e.confidence >= MIN_CONFIDENCE);
+  const relationships = (extraction.relationships || [])
+    .filter((r) => r.confidence >= MIN_CONFIDENCE);
 
   if (entities.length === 0 && relationships.length === 0) {
     return empty;
   }
 
-  // Use a transaction to atomically create all nodes and edges
+  // Resolve entities to existing node IDs via semantic dedup (async)
+  // This must happen before the transaction since embedding is async
+  const embedder = getEmbedder();
+  const labelToId = new Map<string, string>();
+  const newEntities: typeof entities = [];
+
+  for (const entity of entities) {
+    const labelLower = entity.label.toLowerCase();
+    if (labelToId.has(labelLower)) continue;
+
+    const existing = await findSemanticDuplicate(graphStore, embedder, {
+      label: entity.label,
+      type: entity.type,
+    });
+
+    if (existing) {
+      labelToId.set(labelLower, existing.id);
+      // Confirm-and-boost the existing node
+      confirmNode(graphStore, existing.id, entity.confidence, existing.confidence, instanceId);
+    } else {
+      newEntities.push(entity);
+    }
+  }
+
+  // Use a transaction to atomically create new nodes and edges
   return graphStore.transaction(() => {
     let nodesCreated = 0;
     let edgesCreated = 0;
     let memoryNodeId: string | null = null;
 
-    // Map entity labels to node IDs for edge creation
-    const labelToId = new Map<string, string>();
-
-    // Create or dedup entity nodes
-    for (const entity of entities) {
+    // Create new entity nodes (ones not resolved by dedup)
+    for (const entity of newEntities) {
       const labelLower = entity.label.toLowerCase();
       if (labelToId.has(labelLower)) continue;
-
-      const existing = graphStore.findNodeByLabel(entity.label, entity.type);
-      if (existing) {
-        labelToId.set(labelLower, existing.id);
-        continue;
-      }
 
       const node = graphStore.createNode({
         type: entity.type,
@@ -184,7 +170,6 @@ I respond in JSON format only (no markdown):
         memoryNodeId = memoryNode.id;
 
         // Embed the memory content for vector search (fire-and-forget)
-        const embedder = getEmbedder();
         embedder.embed(memory.content).then((embedding) => {
           if (embedding) {
             graphStore.updateNodeEmbedding(memoryNode.id, embedding);

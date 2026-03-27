@@ -79,14 +79,46 @@ The extraction uses the LLM configured via `ENTITY_CORE_LLM_API_KEY` (or `ZAI_AP
 
 **Note**: When entity-core is spawned as a subprocess by Psycheros, Psycheros automatically forwards its `ZAI_*` LLM environment variables. If running entity-core standalone, you must set `ENTITY_CORE_LLM_API_KEY` or `ZAI_API_KEY` yourself for extraction to work.
 
+#### Significance Framework
+
+Not everything in a memory becomes a graph node. The extraction prompt applies a four-test significance framework to each candidate entity:
+
+1. **Identity test** — Does this reveal something meaningful about who someone is?
+2. **Relational test** — Does this matter to how the entity relates to people?
+3. **Durability test** — Will this still matter weeks or months from now?
+4. **Connectivity test** — Does this connect to other known things, building a richer picture?
+
+Entities must pass at least two tests; relationships must pass at least one. The entity's own feelings, growth, and experiences are treated as equally valid material — the graph models the entity's world, not just observations about the user.
+
+#### Confidence Floor
+
+Entities and relationships below a confidence of 0.5 are silently dropped. This is a hard backstop in addition to the prompt-based significance reasoning.
+
+#### Labeling Conventions
+
+- The entity always uses label **"me"** (type `self`) for self-references
+- The user is always referred to by their **actual name**, never "user". If the name isn't in the memory content, the fallback label is "my person"
+
+#### Deduplication
+
+Entities are deduplicated using a two-stage process:
+
+1. **Exact label match** — case-insensitive label+type lookup (fast path, no embedding needed)
+2. **Semantic similarity** — vector search against existing node embeddings with a 0.8 cosine similarity threshold. Matches type (a person "Jordan" won't dedup against a place "Jordan") and filters out `memory_ref` nodes to avoid false positives.
+
+When a semantic duplicate is found, the existing node is confirmed (its `lastConfirmedAt` is updated) and optionally boosted (confidence upgraded if the new extraction is more confident). No new node is created.
+
+#### Extraction Pipeline
+
 Extraction behavior:
 - Memories with content under 100 characters are skipped
-- Entities are deduplicated by label+type before creating new nodes
+- Entities below 0.5 confidence are dropped (confidence floor)
+- Semantic dedup runs async before the database transaction
 - All node/edge creation for a single memory happens in one SQLite transaction
 - A `memory_ref` node is created and linked to extracted entities via "mentions" edges
 - Errors are logged but never fail the memory write
 
-The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt and entity/relationship type lists are shared with `scripts/batch-populate-graph.ts`.
+The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt, types, and dedup logic are defined in `src/graph/extraction-prompt.ts` and shared with the batch scripts.
 
 ### Batch Backfill
 
@@ -126,6 +158,8 @@ Memories can also be explicitly linked to graph nodes via `graph_connect_memory`
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/types.ts` | GraphNode, GraphEdge, search/traverse option types |
 | `src/graph/schema.ts` | SQLite schema for graph tables |
+| `src/graph/extraction-prompt.ts` | Shared extraction prompt, significance framework, confidence floor, semantic dedup |
 | `src/graph/memory-integration.ts` | Auto-extraction of entities from memories, memory-to-graph linking |
 | `scripts/batch-populate-graph.ts` | Batch backfill: retroactively populate graph from existing memory files |
+| `scripts/extract-memories-to-graph.ts` | One-off extraction: extract entities from memory files to graph |
 | `src/graph/rag-integration.ts` | Hybrid vector search + graph traversal |

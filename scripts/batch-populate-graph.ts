@@ -26,6 +26,13 @@ import { FileStore } from "../src/storage/file-store.ts";
 import { createLLMClient } from "../src/llm/mod.ts";
 import { getEmbedder } from "../src/embeddings/mod.ts";
 import type { MemoryEntry, Granularity } from "../src/types.ts";
+import {
+  buildExtractionPrompt,
+  findSemanticDuplicate,
+  confirmNode,
+  type ExtractionType,
+  MIN_CONFIDENCE,
+} from "../src/graph/extraction-prompt.ts";
 
 // ---------------------------------------------------------------------------
 // Flag parsing
@@ -69,57 +76,6 @@ if (!VALID_GRANULARITIES.includes(GRANULARITY_ARG as Granularity | "all")) {
 if (DAYS_ARG && (isNaN(DAYS) || DAYS <= 0)) {
   console.error(`Invalid --days value: "${DAYS_ARG}"`);
   Deno.exit(1);
-}
-
-// ---------------------------------------------------------------------------
-// Extraction prompt (verbatim from src/graph/memory-integration.ts)
-// ---------------------------------------------------------------------------
-
-const EXTRACTION_SYSTEM_PROMPT = `I analyze my memory and identify entities and relationships worth remembering in my knowledge graph.
-
-I extract:
-- **Entities**: People, topics, events, preferences, places, goals, concepts that matter to me
-- **Relationships**: How these entities connect to each other and to the user
-
-CRITICAL - First-Person Perspective:
-- This graph stores how I see the world, not how someone observes me
-- When referring to myself, ALWAYS use label "me" (type: "self")
-- When referring to the user, use label "user" (or their actual name if mentioned)
-
-Guidelines:
-- Use consistent, simple entity labels (e.g., "user" not "the user")
-- ALWAYS create a "me" entity if I mention myself, my feelings, or my experiences
-- ALWAYS create or reference the "user" entity when the user is mentioned
-- Include confidence scores (0.0-1.0) based on how clearly the entity/relationship is expressed
-- Focus on what matters for long-term understanding
-- Skip generic or trivial mentions
-- Entity types: self, person, topic, event, preference, place, goal, health, boundary, tradition, insight (or any appropriate type)
-- Relationship types: use natural language that best describes the connection. Examples: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, mentioned_in, caused, led_to, part_of, associated_with (or any descriptive type)
-
-I respond in JSON format only (no markdown):
-{
-  "entities": [
-    {"type": "self|person|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
-  ],
-  "relationships": [
-    {"fromLabel": "...", "toLabel": "...", "type": "loves|works_at|values|close_to|...", "evidence": "...", "confidence": 0.7}
-  ]
-}`;
-
-interface ExtractionType {
-  entities: Array<{
-    type: string;
-    label: string;
-    description?: string;
-    confidence: number;
-  }>;
-  relationships: Array<{
-    fromLabel: string;
-    toLabel: string;
-    type: string;
-    evidence?: string;
-    confidence: number;
-  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,21 +297,28 @@ async function main() {
 
     console.log(`\nProcessing: ${memory.id} (${memory.content.length} chars)`);
 
-    // Build extraction prompt
-    const prompt =
-      `${EXTRACTION_SYSTEM_PROMPT}\n\nMemory content:\n${memory.content.substring(0, 3000)}`;
+    // Build extraction prompt from shared module
+    const prompt = buildExtractionPrompt(memory.content, memory.date);
 
     try {
       console.log("  Calling LLM...");
-      const extraction = await llm.completeJSON<ExtractionType>(prompt, {
+      const extraction: ExtractionType = await llm.completeJSON<ExtractionType>(prompt, {
         temperature: 0.3,
       });
 
-      const entities = extraction.entities || [];
-      const relationships = extraction.relationships || [];
+      // Apply confidence floor — silently drop low-confidence extractions
+      const rawEntities = extraction.entities ?? [];
+      const rawRelationships = extraction.relationships ?? [];
+      const confidenceDroppedEntities = rawEntities.filter((e: ExtractionType["entities"][number]) => e.confidence < MIN_CONFIDENCE).length;
+      const confidenceDroppedRelationships = rawRelationships.filter((r: ExtractionType["relationships"][number]) => r.confidence < MIN_CONFIDENCE).length;
+      const entities = rawEntities.filter((e: ExtractionType["entities"][number]) => e.confidence >= MIN_CONFIDENCE);
+      const relationships = rawRelationships.filter((r: ExtractionType["relationships"][number]) => r.confidence >= MIN_CONFIDENCE);
 
       console.log(
-        `  Extracted ${entities.length} entities, ${relationships.length} relationships`,
+        `  Extracted ${entities.length} entities, ${relationships.length} relationships` +
+          (confidenceDroppedEntities + confidenceDroppedRelationships > 0
+            ? ` (${confidenceDroppedEntities} entities, ${confidenceDroppedRelationships} relations below confidence floor)`
+            : ""),
       );
 
       if (entities.length === 0 && relationships.length === 0) {
@@ -384,37 +347,61 @@ async function main() {
         continue;
       }
 
-      // Write to graph inside a transaction (matching memory-integration.ts pattern)
+      // Resolve entities to existing node IDs via semantic dedup (async)
+      await embedderInitPromise; // Ensure model is loaded for dedup
+      const localLabelToId = new Map<string, string>();
+      const newEntities: ExtractionType["entities"] = [];
+      let semanticDedupCount = 0;
+
+      for (const entity of entities) {
+        const labelLower = entity.label.toLowerCase();
+        if (localLabelToId.has(labelLower)) continue;
+
+        // Check global label map first (fast path for already-seen labels)
+        let existingId = labelToId.get(labelLower);
+
+        if (!existingId) {
+          const existing = await findSemanticDuplicate(graphStore, embedder, {
+            label: entity.label,
+            type: entity.type,
+          });
+
+          if (existing) {
+            existingId = existing.id;
+            labelToId.set(labelLower, existingId);
+            // Confirm-and-boost the existing node
+            confirmNode(graphStore, existing.id, entity.confidence, existing.confidence, INSTANCE_ID);
+            semanticDedupCount++;
+            if (VERBOSE) console.log(`    [semantic dedup] ${entity.label} -> existing ${existing.id}`);
+          }
+        }
+
+        if (existingId) {
+          localLabelToId.set(labelLower, existingId);
+          if (!VERBOSE || semanticDedupCount === 0) {
+            if (VERBOSE) console.log(`    [exists] ${entity.label}`);
+          }
+          continue;
+        }
+
+        newEntities.push(entity);
+      }
+
+      if (VERBOSE && semanticDedupCount > 0) {
+        console.log(`  Semantic dedup resolved ${semanticDedupCount} entities`);
+      }
+
+      // Write to graph inside a transaction
       const { nodesCreated, edgesCreated, memoryNodeId, mentionsCreated } =
         graphStore.transaction(() => {
           let nc = 0;
           let ec = 0;
           let mc = 0;
-          const localLabelToId = new Map<string, string>();
 
-          // Create or dedup entity nodes
-          for (const entity of entities) {
+          // Create new entity nodes (ones not resolved by dedup)
+          for (const entity of newEntities) {
             const labelLower = entity.label.toLowerCase();
             if (localLabelToId.has(labelLower)) continue;
-
-            // Check global label map first, then DB
-            let existingId = labelToId.get(labelLower);
-            if (!existingId) {
-              const existing = graphStore.findNodeByLabel(
-                entity.label,
-                entity.type,
-              );
-              if (existing) {
-                existingId = existing.id;
-                labelToId.set(labelLower, existingId);
-              }
-            }
-
-            if (existingId) {
-              localLabelToId.set(labelLower, existingId);
-              if (VERBOSE) console.log(`    [exists] ${entity.label}`);
-              continue;
-            }
 
             const node = graphStore.createNode({
               type: entity.type,

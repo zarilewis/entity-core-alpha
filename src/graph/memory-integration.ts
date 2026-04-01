@@ -23,7 +23,6 @@ import {
 export interface ExtractionResult {
   nodesCreated: number;
   edgesCreated: number;
-  memoryNodeId: string | null;
 }
 
 /**
@@ -37,7 +36,7 @@ export async function extractMemoryToGraph(
   graphStore: GraphStore,
   instanceId: string,
 ): Promise<ExtractionResult> {
-  const empty: ExtractionResult = { nodesCreated: 0, edgesCreated: 0, memoryNodeId: null };
+  const empty: ExtractionResult = { nodesCreated: 0, edgesCreated: 0 };
 
   // Skip short/trivial content
   if (memory.content.trim().length < 100) {
@@ -103,7 +102,6 @@ export async function extractMemoryToGraph(
   return graphStore.transaction(() => {
     let nodesCreated = 0;
     let edgesCreated = 0;
-    let memoryNodeId: string | null = null;
 
     // Create new entity nodes (ones not resolved by dedup)
     for (const entity of newEntities) {
@@ -149,58 +147,7 @@ export async function extractMemoryToGraph(
       }
     }
 
-    // Create a memory_ref node and link to extracted entities
-    if (nodesCreated > 0 || edgesCreated > 0) {
-      try {
-        const preview = memory.content.slice(0, 50).replace(/\n/g, " ").trim();
-        const memoryNode = graphStore.createNode({
-          type: "memory_ref",
-          label: `${memory.granularity} memory (${memory.date}): ${preview}...`,
-          description: memory.content.slice(0, 2000),
-          properties: {
-            granularity: memory.granularity,
-            date: memory.date,
-            chatIds: memory.chatIds,
-          },
-          sourceInstance: instanceId,
-          confidence: 1.0,
-          sourceMemoryId: memory.id,
-        });
-
-        memoryNodeId = memoryNode.id;
-
-        // Embed the memory content for vector search (fire-and-forget)
-        embedder.embed(memory.content).then((embedding) => {
-          if (embedding) {
-            graphStore.updateNodeEmbedding(memoryNode.id, embedding);
-          }
-        }).catch(() => {
-          // Embedding failure is non-fatal — memory still exists, just not vector-searchable
-        });
-
-        // Create "mentions" edges from memory_ref to each entity
-        for (const [, nodeId] of labelToId) {
-          try {
-            graphStore.createEdge({
-              fromId: memoryNodeId,
-              toId: nodeId,
-              type: "mentions",
-              weight: 1.0,
-              sourceInstance: instanceId,
-            });
-          } catch {
-            // Edge might already exist
-          }
-        }
-      } catch (error) {
-        console.error(
-          `[Graph] Failed to create memory_ref node for ${memory.id}:`,
-          error instanceof Error ? error.message : error,
-        );
-      }
-    }
-
-    return { nodesCreated, edgesCreated, memoryNodeId };
+    return { nodesCreated, edgesCreated };
   });
 }
 
@@ -211,65 +158,10 @@ export async function extractMemoryToGraph(
  * to be done by the entity itself (via LLM reasoning) using the
  * graph tools. This class provides helper methods for:
  * - Looking up existing nodes by label
- * - Creating memory_ref nodes for new memories
- * - Linking memories to existing nodes
+ * - Creating or finding nodes by label
  */
 export class MemoryIntegration {
   constructor(private store: GraphStore) {}
-
-  /**
-   * Create a memory_ref node for a new memory.
-   * This creates a node that represents the memory itself in the graph.
-   */
-  createMemoryNode(
-    memory: MemoryEntry,
-    instanceId: string
-  ): { nodeId: string } | null {
-    try {
-      // Create a memory_ref node
-      const node = this.store.createNode({
-        type: "memory_ref",
-        label: this.getMemoryLabel(memory),
-        description: memory.content.slice(0, 2000),
-        properties: {
-          granularity: memory.granularity,
-          date: memory.date,
-          chatIds: memory.chatIds,
-        },
-        sourceInstance: instanceId,
-        confidence: 1.0, // Memories are factual records
-        sourceMemoryId: memory.id,
-      });
-
-      // Embed the memory content for vector search (fire-and-forget)
-      const embedder = getEmbedder();
-      embedder.embed(memory.content).then((embedding) => {
-        if (embedding) {
-          this.store.updateNodeEmbedding(node.id, embedding);
-        }
-      }).catch(() => {
-        // Embedding failure is non-fatal
-      });
-
-      return { nodeId: node.id };
-    } catch (error) {
-      console.error(
-        `[MemoryIntegration] Failed to create memory node: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Generate a human-readable label for a memory.
-   */
-  private getMemoryLabel(memory: MemoryEntry): string {
-    const dateStr = memory.date;
-    const preview = memory.content.slice(0, 50).replace(/\n/g, " ").trim();
-    return `${memory.granularity} memory (${dateStr}): ${preview}...`;
-  }
 
   /**
    * Find an existing node by label (case-insensitive).
@@ -347,55 +239,6 @@ export class MemoryIntegration {
       return null;
     }
   }
-
-  /**
-   * Link a memory to multiple nodes.
-   * Creates "mentions" edges from the memory_ref node to each specified node.
-   */
-  linkMemoryToEntities(
-    memoryNodeId: string,
-    entityNodeIds: string[],
-    instanceId: string
-  ): number {
-    let linkedCount = 0;
-
-    for (const entityId of entityNodeIds) {
-      try {
-        this.store.createEdge({
-          fromId: memoryNodeId,
-          toId: entityId,
-          type: "mentions",
-          weight: 1.0,
-          sourceInstance: instanceId,
-        });
-        linkedCount++;
-      } catch {
-        // Edge might already exist or node might not exist
-      }
-    }
-
-    return linkedCount;
-  }
-
-  /**
-   * Get all entities mentioned in a memory.
-   */
-  getMemoryEntities(memoryId: string): Array<{ id: string; type: string; label: string }> {
-    const nodes = this.store.getNodesForMemory(memoryId);
-    return nodes.map((n) => ({
-      id: n.id,
-      type: n.type,
-      label: n.label,
-    }));
-  }
-
-  /**
-   * Get all memories that mention a specific entity.
-   */
-  getEntityMemories(nodeId: string): string[] {
-    return this.store.getMemoriesForNode(nodeId);
-  }
-
 }
 
 /**

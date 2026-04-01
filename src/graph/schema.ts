@@ -127,8 +127,59 @@ export function initializeGraphSchema(db: Database): boolean {
  *
  * @param db - The SQLite database instance
  */
-function runMigrations(_db: Database): void {
-  // No pending migrations.
+function runMigrations(db: Database): void {
+  // Migration: Remove memory_ref nodes and memory_node_links table
+  // memory_ref nodes were redundant copies of memory content — the memory
+  // filesystem and Psycheros' RAG system handle substance. The graph is now
+  // a relational index of durable state only.
+
+  // Check if memory_node_links table exists
+  const hasLinksTable = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_node_links'")
+    .get();
+
+  if (hasLinksTable) {
+    // Drop the memory_node_links table
+    db.exec("DROP TABLE IF EXISTS memory_node_links");
+    console.log("[Graph] Migration: dropped memory_node_links table");
+  }
+
+  // Check if idx_graph_nodes_source_memory index exists
+  const hasMemoryIndex = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_graph_nodes_source_memory'")
+    .get();
+
+  if (hasMemoryIndex) {
+    db.exec("DROP INDEX IF EXISTS idx_graph_nodes_source_memory");
+    console.log("[Graph] Migration: dropped idx_graph_nodes_source_memory index");
+  }
+
+  // Soft-delete all existing memory_ref nodes and their edges
+  const now = new Date().toISOString();
+  const memoryRefCount = db
+    .prepare("SELECT COUNT(*) as count FROM graph_nodes WHERE type = 'memory_ref' AND deleted = 0")
+    .get<{ count: number }>()?.count ?? 0;
+
+  if (memoryRefCount > 0) {
+    // Soft-delete memory_ref nodes
+    db.exec("UPDATE graph_nodes SET deleted = 1, updated_at = ? WHERE type = 'memory_ref' AND deleted = 0", [now]);
+
+    // Soft-delete "mentions" edges (they connected memory_ref nodes to entities)
+    db.exec("UPDATE graph_edges SET deleted = 1, updated_at = ? WHERE type = 'mentions' AND deleted = 0", [now]);
+
+    // Remove memory_ref embeddings from vector table
+    try {
+      db.exec(
+        `DELETE FROM vec_graph_nodes WHERE rowid IN (
+          SELECT rowid FROM graph_nodes WHERE type = 'memory_ref'
+        )`
+      );
+    } catch {
+      // Vector table may not exist or may not have these entries
+    }
+
+    console.log(`[Graph] Migration: soft-deleted ${memoryRefCount} memory_ref nodes and their mentions edges`);
+  }
 }
 
 /**

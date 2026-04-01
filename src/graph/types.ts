@@ -7,12 +7,12 @@
 
 /**
  * A node in my knowledge graph.
- * Represents a concept, person, event, or any entity I know about.
+ * Represents a concept, person, preference, or any entity I know about.
  */
 export interface GraphNode {
   /** Unique identifier for this node */
   id: string;
-  /** Type of node (person, event, memory_ref, topic, preference, etc.) */
+  /** Type of node (person, self, topic, preference, place, goal, health, etc.) */
   type: string;
   /** Human-readable label for this node */
   label: string;
@@ -83,8 +83,6 @@ export interface GraphEdge {
 export type SuggestedNodeType =
   | "self"
   | "person"
-  | "event"
-  | "memory_ref"
   | "topic"
   | "preference"
   | "place"
@@ -117,14 +115,8 @@ export const SUGGESTED_EDGE_VOCABULARY: Record<string, string[]> = {
   "Knowledge/Interest": [
     "skilled_at", "learning", "interested_in", "knows_about",
   ],
-  "Temporal/Causal": [
-    "happened_during", "caused", "led_to", "part_of",
-  ],
   "Association": [
     "reminds_of", "similar_to", "contrasts_with", "associated_with",
-  ],
-  "Memory link": [
-    "mentioned_in", "mentions",
   ],
 };
 

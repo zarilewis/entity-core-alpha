@@ -46,8 +46,6 @@ import {
   createGraphEdgeDeleteHandler,
   createGraphTraverseHandler,
   createGraphSubgraphHandler,
-  createGraphConnectMemoryHandler,
-  createGraphGetMemoryNodesHandler,
   createGraphInsightsHandler,
   createGraphStatsHandler,
   createGraphWriteTransactionHandler,
@@ -809,39 +807,6 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await graphStore.initialize();
       const handler = createGraphSubgraphHandler(graphStore);
       const result = await handler({ nodeId, depth });
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
-    }
-  );
-
-  server.tool(
-    "graph_connect_memory",
-    graphTools["graph/connect_memory"].description,
-    {
-      memoryId: graphTools["graph/connect_memory"].inputSchema.shape.memoryId,
-      nodeIds: graphTools["graph/connect_memory"].inputSchema.shape.nodeIds,
-    },
-    async ({ memoryId, nodeIds }) => {
-      await graphStore.initialize();
-      const handler = createGraphConnectMemoryHandler(graphStore);
-      const result = await handler({ memoryId, nodeIds });
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
-    }
-  );
-
-  server.tool(
-    "graph_get_memory_nodes",
-    graphTools["graph/get_memory_nodes"].description,
-    {
-      memoryId: graphTools["graph/get_memory_nodes"].inputSchema.shape.memoryId,
-    },
-    async ({ memoryId }) => {
-      await graphStore.initialize();
-      const handler = createGraphGetMemoryNodesHandler(graphStore);
-      const result = await handler({ memoryId });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };

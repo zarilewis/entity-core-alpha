@@ -3,10 +3,11 @@
  * Batch populate knowledge graph from memory files.
  *
  * Reads memory files from disk, extracts entities and relationships via LLM,
- * creates memory_ref nodes with "mentions" edges, and generates embeddings.
- * Matches the real-time extraction path in src/graph/memory-integration.ts.
+ * and creates graph nodes/edges. Matches the real-time extraction path in
+ * src/graph/memory-integration.ts.
  *
- * Idempotent: re-running skips memories that already have a memory_ref node.
+ * Idempotent: re-running may create duplicate edges (harmless) but
+ * semantic dedup prevents duplicate entity nodes.
  *
  * Usage:
  *   deno run -A scripts/batch-populate-graph.ts [flags]
@@ -133,9 +134,6 @@ interface MemoryResult {
   memoryId: string;
   nodesCreated: number;
   edgesCreated: number;
-  memoryNodeId: string | null;
-  mentionsCreated: number;
-  embedded: boolean;
   skipped: boolean;
   skippedReason?: string;
 }
@@ -181,22 +179,7 @@ async function main() {
   }
   console.log(`Pre-loaded ${labelToId.size} existing node labels.\n`);
 
-  // 5. Find already-processed memory IDs from existing memory_ref nodes
-  const processedMemoryIds = new Set<string>();
-  const existingMemoryRefs = graphStore.listNodes({
-    type: "memory_ref",
-    limit: 10000,
-  });
-  for (const node of existingMemoryRefs) {
-    if (node.sourceMemoryId) {
-      processedMemoryIds.add(node.sourceMemoryId);
-    }
-  }
-  console.log(
-    `Found ${processedMemoryIds.size} already-processed memories (will skip).\n`,
-  );
-
-  // 6. Discover memories to process
+  // 5. Discover memories to process
   const fileStore = new FileStore(DATA_DIR);
   const memoriesToProcess: MemoryEntry[] = [];
 
@@ -245,12 +228,10 @@ async function main() {
     return;
   }
 
-  // 7. Process each memory
+  // 6. Process each memory
   const results: MemoryResult[] = [];
   let totalNodesCreated = 0;
   let totalEdgesCreated = 0;
-  let totalMentionsCreated = 0;
-  let totalEmbedded = 0;
   let totalSkipped = 0;
   let totalErrors = 0;
 
@@ -259,21 +240,8 @@ async function main() {
       memoryId: memory.id,
       nodesCreated: 0,
       edgesCreated: 0,
-      memoryNodeId: null,
-      mentionsCreated: 0,
-      embedded: false,
       skipped: false,
     };
-
-    // Skip already-processed memories
-    if (processedMemoryIds.has(memory.id)) {
-      result.skipped = true;
-      result.skippedReason = "already has memory_ref";
-      totalSkipped++;
-      if (VERBOSE) console.log(`  Skipping ${memory.id} — already has memory_ref`);
-      results.push(result);
-      continue;
-    }
 
     // Skip short/trivial content
     if (memory.content.trim().length < 100) {
@@ -342,7 +310,6 @@ async function main() {
         }
         result.nodesCreated = entities.length;
         result.edgesCreated = relationships.length;
-        result.mentionsCreated = entities.length;
         results.push(result);
         continue;
       }
@@ -392,11 +359,10 @@ async function main() {
       }
 
       // Write to graph inside a transaction
-      const { nodesCreated, edgesCreated, memoryNodeId, mentionsCreated } =
+      const { nodesCreated, edgesCreated } =
         graphStore.transaction(() => {
           let nc = 0;
           let ec = 0;
-          let mc = 0;
 
           // Create new entity nodes (ones not resolved by dedup)
           for (const entity of newEntities) {
@@ -460,89 +426,14 @@ async function main() {
             }
           }
 
-          // Create memory_ref node and mentions edges
-          let memNodeId: string | null = null;
-          if (nc > 0 || ec > 0) {
-            try {
-              const preview = memory.content.slice(0, 50).replace(/\n/g, " ")
-                .trim();
-              const memoryNode = graphStore.createNode({
-                type: "memory_ref",
-                label: `${memory.granularity} memory (${memory.date}): ${preview}...`,
-                description: memory.content.slice(0, 2000),
-                properties: {
-                  granularity: memory.granularity,
-                  date: memory.date,
-                  chatIds: memory.chatIds,
-                },
-                sourceInstance: INSTANCE_ID,
-                confidence: 1.0,
-                sourceMemoryId: memory.id,
-              });
-
-              memNodeId = memoryNode.id;
-
-              // Create "mentions" edges from memory_ref to each entity
-              for (const [, nodeId] of localLabelToId) {
-                try {
-                  graphStore.createEdge({
-                    fromId: memNodeId,
-                    toId: nodeId,
-                    type: "mentions",
-                    weight: 1.0,
-                    sourceInstance: INSTANCE_ID,
-                  });
-                  mc++;
-                } catch {
-                  // Edge might already exist
-                }
-              }
-            } catch (error) {
-              console.error(
-                `  Failed to create memory_ref: ${error instanceof Error ? error.message : error}`,
-              );
-            }
-          }
-
-          return {
-            nodesCreated: nc,
-            edgesCreated: ec,
-            memoryNodeId: memNodeId,
-            mentionsCreated: mc,
-          };
+          return { nodesCreated: nc, edgesCreated: ec };
         });
 
       result.nodesCreated = nodesCreated;
       result.edgesCreated = edgesCreated;
-      result.memoryNodeId = memoryNodeId;
-      result.mentionsCreated = mentionsCreated;
-
-      // Generate embedding (outside transaction)
-      if (memoryNodeId) {
-        try {
-          await embedderInitPromise; // Ensure model is loaded
-          const embedding = await embedder.embed(memory.content);
-          if (embedding) {
-            graphStore.updateNodeEmbedding(memoryNodeId, embedding);
-            result.embedded = true;
-            totalEmbedded++;
-            if (VERBOSE) {
-              console.log(
-                `    [embedded] memory_ref node ${memoryNodeId}`,
-              );
-            }
-          }
-        } catch (error) {
-          console.error(
-            `  Embedding failed for ${memory.id}: ${error instanceof Error ? error.message : error}`,
-          );
-          // Non-fatal
-        }
-      }
 
       totalNodesCreated += nodesCreated;
       totalEdgesCreated += edgesCreated;
-      totalMentionsCreated += mentionsCreated;
     } catch (error) {
       console.error(
         `  Error processing ${memory.id}: ${error instanceof Error ? error.message : error}`,
@@ -558,7 +449,7 @@ async function main() {
     }
   }
 
-  // 8. Summary
+  // 7. Summary
   console.log("\n\n=== Batch Populate Summary ===\n");
   console.log(`Memories scanned:      ${memoriesToProcess.length}`);
   console.log(
@@ -568,11 +459,6 @@ async function main() {
   console.log(`Errors:                ${totalErrors}`);
   console.log(`Entity nodes created:  ${totalNodesCreated}`);
   console.log(`Relationship edges:    ${totalEdgesCreated}`);
-  console.log(`Mentions edges:        ${totalMentionsCreated}`);
-  console.log(
-    `Memory ref nodes:      ${results.filter((r) => r.memoryNodeId !== null).length}`,
-  );
-  console.log(`Embeddings generated:  ${totalEmbedded}`);
   if (DRY_RUN) console.log(`\n[DRY RUN] No changes made to graph.`);
 
   if (totalNodesCreated > 0 || totalEdgesCreated > 0 || DRY_RUN) {
@@ -580,7 +466,7 @@ async function main() {
     for (const r of results) {
       if (r.nodesCreated > 0 || r.edgesCreated > 0) {
         console.log(
-          `  ${r.memoryId}: +${r.nodesCreated} entities, +${r.edgesCreated} edges, +${r.mentionsCreated} mentions${r.embedded ? ", embedded" : ""}`,
+          `  ${r.memoryId}: +${r.nodesCreated} entities, +${r.edgesCreated} edges`,
         );
       }
     }

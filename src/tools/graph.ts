@@ -110,16 +110,6 @@ export const GraphSubgraphSchema = z.object({
   depth: z.number().min(1).max(3).optional(),
 });
 
-// Memory linking schemas
-export const GraphConnectMemorySchema = z.object({
-  memoryId: z.string().min(1),
-  nodeIds: z.array(z.string().min(1)).min(1),
-});
-
-export const GraphGetMemoryNodesSchema = z.object({
-  memoryId: z.string().min(1),
-});
-
 // Insights schemas
 export const GraphInsightsSchema = z.object({});
 
@@ -313,22 +303,6 @@ export interface GraphSubgraphOutput {
     toId: string;
     type: string;
     weight: number;
-  }>;
-}
-
-export interface GraphConnectMemoryOutput {
-  success: boolean;
-  message: string;
-  linkedCount: number;
-}
-
-export interface GraphGetMemoryNodesOutput {
-  memoryId: string;
-  nodes: Array<{
-    id: string;
-    type: string;
-    label: string;
-    description: string;
   }>;
 }
 
@@ -851,42 +825,6 @@ export function createGraphSubgraphHandler(
 }
 
 /**
- * Create the graph_connect_memory tool handler.
- */
-export function createGraphConnectMemoryHandler(
-  store: GraphStore
-): (input: z.infer<typeof GraphConnectMemorySchema>) => GraphConnectMemoryOutput {
-  return (input: z.infer<typeof GraphConnectMemorySchema>): GraphConnectMemoryOutput => {
-    store.linkMemoryToNodes(input.memoryId, input.nodeIds);
-    return ({
-      success: true,
-      message: `I have linked memory ${input.memoryId} to ${input.nodeIds.length} node(s)`,
-      linkedCount: input.nodeIds.length,
-    });
-  };
-}
-
-/**
- * Create the graph_get_memory_nodes tool handler.
- */
-export function createGraphGetMemoryNodesHandler(
-  store: GraphStore
-): (input: z.infer<typeof GraphGetMemoryNodesSchema>) => GraphGetMemoryNodesOutput {
-  return (input: z.infer<typeof GraphGetMemoryNodesSchema>): GraphGetMemoryNodesOutput => {
-    const nodes = store.getNodesForMemory(input.memoryId);
-    return ({
-      memoryId: input.memoryId,
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        type: n.type,
-        label: n.label,
-        description: n.description,
-      })),
-    });
-  };
-}
-
-/**
  * Create the graph_insights tool handler.
  */
 export function createGraphInsightsHandler(
@@ -1052,7 +990,7 @@ export function createGraphWriteTransactionHandler(
 export const graphTools = {
   "graph/node_create": {
     description:
-      "Create a new node in my knowledge graph. I use this to remember people, emotions, events, preferences, and how things connect. IMPORTANT: Write from first-person perspective - use 'me' (type: self) for self-references, 'user' for the person I interact with.",
+      "Create a new node in my knowledge graph. I use this to remember durable state — people, preferences, places, goals, beliefs, health, and how things connect. IMPORTANT: Write from first-person perspective - use 'me' (type: self) for self-references, 'user' for the person I interact with.",
     inputSchema: GraphNodeCreateSchema,
   },
   "graph/node_get": {
@@ -1109,16 +1047,6 @@ export const graphTools = {
     description:
       "Extract a subgraph centered on a node. I use this to get the full context around a concept.",
     inputSchema: GraphSubgraphSchema,
-  },
-  "graph/connect_memory": {
-    description:
-      "Link a memory to nodes in my knowledge graph. I use this to track which memories mention which concepts.",
-    inputSchema: GraphConnectMemorySchema,
-  },
-  "graph/get_memory_nodes": {
-    description:
-      "Get all nodes linked to a specific memory.",
-    inputSchema: GraphGetMemoryNodesSchema,
   },
   "graph/insights": {
     description:

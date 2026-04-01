@@ -24,7 +24,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 
 | Tool | Description |
 |------|-------------|
-| `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background, including generating an embedding for vector search (requires `ENTITY_CORE_LLM_API_KEY`). |
+| `memory/create` | Create a new memory entry with instance tagging. Automatically extracts entities and relationships into the knowledge graph in the background (requires `ENTITY_CORE_LLM_API_KEY`). |
 | `memory/search` | Search my memories using multi-signal ranking (vector similarity, recency, graph context, instance affinity). Falls back to text matching if embeddings are unavailable. |
 | `memory/list` | List my memories by granularity |
 | `memory/read` | Read a single memory entry by granularity and date. Returns full content and metadata (source instance, version, timestamps). |
@@ -118,13 +118,13 @@ See [snapshots.md](snapshots.md) for retention policies and restore procedures.
 
 ## Knowledge Graph Tools
 
-The knowledge graph tracks relationships between concepts, people, emotions, and events. It complements hierarchical memory by providing structured relationship data.
+The knowledge graph tracks durable state — relationships between concepts, people, preferences, and beliefs. It complements hierarchical memory by providing structured relationship data.
 
 ### Node Operations
 
 | Tool | Description |
 |------|-------------|
-| `graph/node_create` | Create a node (self, person, emotion, event, topic, etc.). Returns existing node if one with same label+type exists (duplicate prevention) |
+| `graph/node_create` | Create a node (self, person, emotion, topic, preference, etc.). Returns existing node if one with same label+type exists (duplicate prevention) |
 | `graph/node_get` | Get a node by ID |
 | `graph/node_update` | Update node properties |
 | `graph/node_delete` | Soft-delete a node |
@@ -148,8 +148,6 @@ The knowledge graph tracks relationships between concepts, people, emotions, and
 |------|-------------|
 | `graph/traverse` | Traverse from a node (BFS, configurable depth/direction) |
 | `graph/subgraph` | Extract related nodes as a subgraph |
-| `graph/connect_memory` | Link a memory to graph nodes |
-| `graph/get_memory_nodes` | Get nodes linked to a memory |
 | `graph/insights` | Discover patterns (bridges, clusters) |
 | `graph/stats` | Get graph statistics |
 

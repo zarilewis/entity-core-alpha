@@ -164,10 +164,11 @@ export class GraphRAG {
 
   /**
    * Build a formatted context string for LLM consumption.
+   * Uses compact one-line-per-relationship format.
    */
   private buildContextString(
-    primaryNodes: Array<{ node: GraphNode; score: number }>,
-    relatedNodes: Array<{
+    _primaryNodes: Array<{ node: GraphNode; score: number }>,
+    _relatedNodes: Array<{
       node: GraphNode;
       relationship: string;
       viaNode: string;
@@ -177,79 +178,111 @@ export class GraphRAG {
       fromLabel: string;
       toLabel: string;
     }>,
-    includeEvidence: boolean
+    _includeEvidence: boolean
   ): string {
-    const sections: string[] = [];
+    if (relationships.length === 0) return "";
 
-    // Primary nodes section
-    if (primaryNodes.length > 0) {
-      sections.push("## Key Concepts (via semantic search)");
-      for (const { node, score } of primaryNodes) {
-        const confidence = `confidence: ${Math.round(node.confidence * 100)}%`;
-        sections.push(
-          `- **${node.label}** (${node.type})\n  ${node.description}\n  [${confidence}, relevance: ${Math.round(score * 100)}%]`
-        );
+    // Collect all node IDs referenced in relationships for standalone entity formatting
+    const nodeIds = new Set<string>();
+    for (const { edge } of relationships) {
+      nodeIds.add(edge.fromId);
+      nodeIds.add(edge.toId);
+    }
+
+    // Collect all nodes we know about (primary + related) for standalone formatting
+    const knownNodes = new Map<string, GraphNode>();
+    for (const { node } of _primaryNodes) {
+      knownNodes.set(node.id, node);
+    }
+    for (const { node } of _relatedNodes) {
+      knownNodes.set(node.id, node);
+    }
+
+    const lines: string[] = [];
+
+    // Format relationships as compact one-liners
+    for (const { edge, fromLabel, toLabel } of relationships) {
+      const relType = edge.type;
+      const parts = [`${fromLabel} ${relType} ${toLabel}`];
+
+      // Add parenthetical context from edge evidence or node descriptions
+      if (edge.evidence) {
+        parts.push(`(${edge.evidence})`);
+      } else {
+        // Try to get context from the target node's description
+        const targetNode = knownNodes.get(edge.toId);
+        if (targetNode?.description) {
+          parts.push(`(${targetNode.description})`);
+        }
+      }
+
+      lines.push(parts.join(" "));
+    }
+
+    // Add standalone entity nodes (those without relationships in this context)
+    for (const { node } of _primaryNodes) {
+      if (!nodeIds.has(node.id)) {
+        const desc = node.description ? `: ${node.description}` : "";
+        lines.push(`${node.label} (type: ${node.type}${desc})`);
+      }
+    }
+    for (const { node } of _relatedNodes) {
+      if (!nodeIds.has(node.id) && !knownNodes.has(node.id)) {
+        const desc = node.description ? `: ${node.description}` : "";
+        lines.push(`${node.label} (type: ${node.type}${desc})`);
       }
     }
 
-    // Related nodes section
-    if (relatedNodes.length > 0) {
-      sections.push("\n## Related Concepts (via graph connections)");
-      for (const { node, relationship, viaNode } of relatedNodes) {
-        sections.push(
-          `- **${node.label}** (${node.type}): ${relationship} from "${viaNode}"\n  ${node.description}`
-        );
-      }
-    }
-
-    // Relationships section
-    if (relationships.length > 0) {
-      sections.push("\n## Relationships");
-      for (const { edge, fromLabel, toLabel } of relationships) {
-        const relType = edge.type;
-        const weight = `weight: ${Math.round(edge.weight * 100)}%`;
-        const evidence = includeEvidence && edge.evidence
-          ? `\n  Evidence: ${edge.evidence}`
-          : "";
-        sections.push(
-          `- **${fromLabel}** → *${relType}* → **${toLabel}** [${weight}]${evidence}`
-        );
-      }
-    }
-
-    return sections.join("\n");
+    return lines.join("\n");
   }
 
   /**
    * Build a context string for a subgraph.
+   * Uses compact one-line-per-relationship format.
    */
   private buildSubgraphContextString(subgraph: Subgraph): string {
-    const sections: string[] = [];
+    if (subgraph.nodes.length === 0) return "";
 
-    // Nodes
-    if (subgraph.nodes.length > 0) {
-      sections.push("## Nodes");
-      for (const node of subgraph.nodes) {
-        sections.push(
-          `- **${node.label}** (${node.type})\n  ${node.description}`
-        );
+    const nodeLabels = new Map<string, string>();
+    const nodeDescriptions = new Map<string, string>();
+    for (const node of subgraph.nodes) {
+      nodeLabels.set(node.id, node.label);
+      nodeDescriptions.set(node.id, node.description);
+    }
+
+    const lines: string[] = [];
+    const edgeNodeIds = new Set<string>();
+
+    // Format edges as compact one-liners
+    for (const edge of subgraph.edges) {
+      const fromLabel = nodeLabels.get(edge.fromId) || edge.fromId;
+      const toLabel = nodeLabels.get(edge.toId) || edge.toId;
+      const relType = edge.type;
+      const parts = [`${fromLabel} ${relType} ${toLabel}`];
+
+      if (edge.evidence) {
+        parts.push(`(${edge.evidence})`);
+      } else {
+        const targetDesc = nodeDescriptions.get(edge.toId);
+        if (targetDesc) {
+          parts.push(`(${targetDesc})`);
+        }
+      }
+
+      edgeNodeIds.add(edge.fromId);
+      edgeNodeIds.add(edge.toId);
+      lines.push(parts.join(" "));
+    }
+
+    // Add standalone nodes (no edges)
+    for (const node of subgraph.nodes) {
+      if (!edgeNodeIds.has(node.id)) {
+        const desc = node.description ? `: ${node.description}` : "";
+        lines.push(`${node.label} (type: ${node.type}${desc})`);
       }
     }
 
-    // Edges
-    if (subgraph.edges.length > 0) {
-      sections.push("\n## Relationships");
-      for (const edge of subgraph.edges) {
-        const fromNode = subgraph.nodes.find((n) => n.id === edge.fromId);
-        const toNode = subgraph.nodes.find((n) => n.id === edge.toId);
-        const relType = edge.type;
-        sections.push(
-          `- **${fromNode?.label ?? edge.fromId}** → *${relType}* → **${toNode?.label ?? edge.toId}**`
-        );
-      }
-    }
-
-    return sections.join("\n");
+    return lines.join("\n");
   }
 
   /**

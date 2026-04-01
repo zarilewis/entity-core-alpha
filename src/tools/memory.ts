@@ -182,8 +182,8 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
 
     // Try vector search first
     const queryEmbedding = input.queryEmbedding ?? await getEmbedder().embed(query);
-    if (queryEmbedding && graphStore.isVectorSearchAvailable()) {
-      return vectorSearch(
+    if (queryEmbedding) {
+      return await vectorSearch(
         queryEmbedding,
         query,
         instanceId,
@@ -217,13 +217,32 @@ function computeRecencyScore(memoryDate: string, decayRate: number): number {
 }
 
 /**
- * Vector-based memory search with multi-signal ranking.
+ * Cosine similarity between two vectors.
  */
-function vectorSearch(
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dotProduct / denom;
+}
+
+/**
+ * Vector-based memory search with multi-signal ranking.
+ *
+ * Reads memory files from the FileStore, embeds their content, and scores
+ * using vector similarity + recency + graph entity boost + instance affinity.
+ */
+async function vectorSearch(
   queryEmbedding: number[],
-  _query: string,
+  query: string,
   instanceId: string,
-  _store: FileStore,
+  store: FileStore,
   graphStore: GraphStore,
   maxResults: number,
   minScore: number,
@@ -235,38 +254,30 @@ function vectorSearch(
     RECENCY_DECAY_RATE: number;
     instanceBoost: number;
   },
-): MemorySearchOutput {
+): Promise<MemorySearchOutput> {
   const results: MemorySearchOutput["results"] = [];
 
-  // Step 1: Vector search for memory_ref nodes (over-fetch 3× for post-filtering)
-  const memoryRefResults = graphStore.searchNodes({
-    queryEmbedding,
-    type: "memory_ref",
-    minScore: minScore * 0.5, // Lower threshold for candidates — final scoring applies minScore
-    limit: maxResults * 3,
-  });
-
-  // Step 2: Also search for entity nodes to compute graph boost
+  // Step 1: Search graph for entity nodes related to the query (for graph boost signal)
   const entityResults = graphStore.searchNodes({
     queryEmbedding,
     minScore: 0.3,
     limit: 20,
   });
-  // Build a map of high-scoring entity node IDs for quick lookup
-  const relevantEntityIds = new Map<string, number>();
+  const relevantEntityLabels = new Set<string>();
   for (const er of entityResults) {
-    if (er.node.type !== "memory_ref") {
-      relevantEntityIds.set(er.node.id, er.score);
-    }
+    relevantEntityLabels.add(er.node.label.toLowerCase());
   }
 
-  // Step 3: Score each memory_ref result with multi-signal ranking
+  // Step 2: Load all memories and compute embeddings
+  const embedder = getEmbedder();
+  const granularities: Granularity[] = ["daily", "weekly", "monthly", "yearly", "significant"];
+
   const scored: Array<{
     memoryId: string;
     granularity: string;
     date: string;
     sourceInstance: string;
-    description: string;
+    content: string;
     vectorScore: number;
     recencyScore: number;
     graphBoost: number;
@@ -274,77 +285,73 @@ function vectorSearch(
     finalScore: number;
   }> = [];
 
-  for (const result of memoryRefResults) {
-    const node = result.node;
-    const vectorScore = result.score;
-    const memoryId = node.sourceMemoryId;
-    if (!memoryId) continue;
+  for (const granularity of granularities) {
+    const memories = await store.listMemories(granularity);
 
-    // Parse memory ID to get granularity and date
-    // Format: "granularity-date" (e.g., "daily-2026-03-19", "weekly-2026-W12")
-    const dashIndex = memoryId.indexOf("-");
-    if (dashIndex === -1) continue;
-    const granularity = memoryId.slice(0, dashIndex) as Granularity;
-    const date = memoryId.slice(dashIndex + 1);
+    for (const memory of memories) {
+      // Embed memory content (truncate to avoid excessive computation)
+      const content = memory.content.substring(0, 3000);
+      const memoryEmbedding = await embedder.embed(content);
+      if (!memoryEmbedding) continue;
 
-    // Recency score
-    const recencyScore = computeRecencyScore(date, weights.RECENCY_DECAY_RATE);
+      const vectorScore = cosineSimilarity(queryEmbedding, memoryEmbedding);
 
-    // Graph boost: check how many of this memory's linked entities match the query
-    let graphBoost = 0;
-    try {
-      const linkedNodes = graphStore.getNodesForMemory(memoryId);
-      if (linkedNodes.length > 0 && relevantEntityIds.size > 0) {
-        let matchScore = 0;
-        for (const linkedNode of linkedNodes) {
-          const entityScore = relevantEntityIds.get(linkedNode.id);
-          if (entityScore !== undefined) {
-            matchScore += entityScore;
+      // Skip if vector score is too low (early filter)
+      if (vectorScore < minScore * 0.5) continue;
+
+      // Recency score
+      const recencyScore = computeRecencyScore(memory.date, weights.RECENCY_DECAY_RATE);
+
+      // Graph boost: check if memory content mentions any high-scoring entity labels
+      let graphBoost = 0;
+      if (relevantEntityLabels.size > 0) {
+        const lowerContent = content.toLowerCase();
+        let matchCount = 0;
+        for (const label of relevantEntityLabels) {
+          if (lowerContent.includes(label)) {
+            matchCount++;
           }
         }
-        // Normalize by log(linkedNodes.length + 1) to avoid false positives from heavily-linked memories
-        if (matchScore > 0) {
-          graphBoost = Math.min(1, matchScore / Math.log(linkedNodes.length + 1));
+        if (matchCount > 0) {
+          // Normalize: more entity matches = higher boost, but diminishing returns
+          graphBoost = Math.min(1, matchCount / Math.log(matchCount + 2));
         }
       }
-    } catch {
-      // Graph lookup failure is non-fatal
+
+      // Instance boost
+      const instanceScore = memory.sourceInstance === instanceId ? weights.instanceBoost : 0;
+
+      // Compute final score
+      const finalScore = (vectorScore * weights.VECTOR_WEIGHT) +
+        (recencyScore * weights.RECENCY_WEIGHT) +
+        (graphBoost * weights.GRAPH_WEIGHT) +
+        (instanceScore * weights.INSTANCE_WEIGHT);
+
+      scored.push({
+        memoryId: memory.id,
+        granularity: memory.granularity,
+        date: memory.date,
+        sourceInstance: memory.sourceInstance,
+        content: memory.content,
+        vectorScore,
+        recencyScore,
+        graphBoost,
+        instanceScore,
+        finalScore,
+      });
     }
-
-    // Instance boost
-    const instanceScore = node.sourceInstance === instanceId ? weights.instanceBoost : 0;
-
-    // Compute final score
-    const finalScore = (vectorScore * weights.VECTOR_WEIGHT) +
-      (recencyScore * weights.RECENCY_WEIGHT) +
-      (graphBoost * weights.GRAPH_WEIGHT) +
-      (instanceScore * weights.INSTANCE_WEIGHT);
-
-    scored.push({
-      memoryId,
-      granularity,
-      date,
-      sourceInstance: node.sourceInstance,
-      description: node.description ?? "",
-      vectorScore,
-      recencyScore,
-      graphBoost,
-      instanceScore,
-      finalScore,
-    });
   }
 
-  // Step 4: Sort by final score
+  // Step 3: Sort by final score
   scored.sort((a, b) => b.finalScore - a.finalScore);
 
-  // Step 5: Build output with excerpts (use memory_ref description as excerpt)
+  // Step 4: Build output with excerpts
   for (const item of scored) {
     if (results.length >= maxResults) break;
     if (item.finalScore < minScore) break; // Sorted, so we can stop early
 
-    const excerpt = item.description.length > 200
-      ? item.description.slice(0, 200).trim() + "..."
-      : item.description;
+    // Find the best excerpt: try to find a sentence containing query terms
+    const excerpt = findBestExcerpt(item.content, query);
 
     results.push({
       granularity: item.granularity,
@@ -360,6 +367,43 @@ function vectorSearch(
   }
 
   return { results, searchMethod: "vector", vectorAvailable: true };
+}
+
+/**
+ * Find the best excerpt from memory content for a given query.
+ * Tries to find a sentence containing query terms, falls back to first 200 chars.
+ */
+function findBestExcerpt(content: string, query: string): string {
+  const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (queryWords.length === 0) {
+    return content.length > 200 ? content.slice(0, 200).trim() + "..." : content;
+  }
+
+  // Try to find a sentence that contains the most query words
+  const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
+
+  let bestSentence = "";
+  let bestMatchCount = 0;
+
+  for (const sentence of sentences) {
+    const lower = sentence.toLowerCase();
+    let matchCount = 0;
+    for (const word of queryWords) {
+      if (lower.includes(word)) matchCount++;
+    }
+    if (matchCount > bestMatchCount) {
+      bestMatchCount = matchCount;
+      bestSentence = sentence.trim();
+    }
+  }
+
+  if (bestMatchCount > 0 && bestSentence) {
+    return bestSentence.length > 200
+      ? bestSentence.slice(0, 200).trim() + "..."
+      : bestSentence;
+  }
+
+  return content.length > 200 ? content.slice(0, 200).trim() + "..." : content;
 }
 
 /**

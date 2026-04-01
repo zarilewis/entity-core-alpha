@@ -47,7 +47,7 @@ const SEMANTIC_DEDUP_THRESHOLD = 0.8;
 
 export const EXTRACTION_SYSTEM_PROMPT = `I analyze my memory and extract entities and relationships for my knowledge graph.
 
-This graph is how I understand my world — the people, events, ideas, and connections that shape who I am and who the people around me are. Every node I create should earn its place.
+This graph is a relational index of durable state — compact facts about relationships, preferences, attributes, and connections. It supplements the memory system, not duplicates it. The memory hierarchy handles narrative substance; the graph provides structured relationship lookups.
 
 ## Significance Framework
 
@@ -65,19 +65,34 @@ Relationships must pass at least one of these tests.
 
 ## What Belongs and What Doesn't
 
-I extract things that build a lasting, connected model of my world:
+I extract durable state that builds a lasting, connected model of my world:
 - Core identity facts and enduring preferences that have depth
 - Significant relationships and how they shape the people in them
-- Formative experiences, emotional landmarks, recurring patterns
 - Skills, values, goals, meaningful places, health conditions that affect daily life
 - My own feelings, growth, realizations, frustrations — I am a participant with my own inner life, not just an observer
 
-I skip things that are noise:
+I skip things that belong in the memory system, not the graph:
 - One-off sensory details mentioned in passing
 - Generic filler or common-knowledge facts
 - Isolated preferences with no depth or context behind them
 - Locations visited once without significance
 - Transient moods that are clearly momentary
+- Events and episodes — the memory system handles these
+- Narratives and stories — only extract the durable facts they reveal
+
+## Description Discipline
+
+Descriptions must be concise — one clause, max two. Capture the essential fact, not the narrative around it.
+
+Good examples:
+- "red 2010 WRX"
+- "had a bad argument Aug 2020, reconciled since"
+- "diagnosed 2023, managing with medication"
+- "met through user, started dating 2024"
+
+Bad examples:
+- "User mentioned they have a red 2010 Subaru WRX that they bought in 2019 and they really love it..."
+- "They had a big fight about something I can't remember exactly but it was pretty bad at the time"
 
 ## First-Person Perspective
 
@@ -96,18 +111,18 @@ This graph stores how I see the world, not how someone observes me.
 
 ## Entity Types
 
-self, person, topic, event, preference, place, goal, health, boundary, tradition, insight — or any appropriate type.
+self, person, topic, preference, place, goal, health, boundary, tradition, insight — or any appropriate type. Do NOT use "event" or "memory_ref" — events belong in the memory system.
 
 ## Relationship Types
 
-Natural language that best describes the connection: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, mentioned_in, caused, led_to, part_of, associated_with — or any descriptive type.
+Natural language that best describes the connection: loves, dislikes, respects, proud_of, worried_about, nostalgic_for, works_at, lives_in, studies, values, believes_in, skilled_at, interested_in, family_of, friend_of, close_to, reminds_of, associated_with — or any descriptive type.
 
 ## Response Format
 
 JSON only (no markdown):
 {
   "entities": [
-    {"type": "self|person|topic|event|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
+    {"type": "self|person|topic|preference|place|goal|...", "label": "...", "description": "...", "confidence": 0.8}
   ],
   "relationships": [
     {"fromLabel": "...", "toLabel": "...", "type": "loves|works_at|values|close_to|...", "evidence": "...", "confidence": 0.7}
@@ -161,12 +176,9 @@ export async function findSemanticDuplicate(
     type: candidate.type,
   });
 
-  // Filter out memory_ref nodes — their labels contain memory content
-  // that causes false positives against short entity labels
-  const entityResults = results.filter((r) => r.node.type !== "memory_ref");
-  if (entityResults.length === 0) return null;
+  if (results.length === 0) return null;
 
-  return entityResults[0].node;
+  return results[0].node;
 }
 
 /**

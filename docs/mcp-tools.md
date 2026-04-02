@@ -36,7 +36,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 |-------|------|----------|-------------|
 | `granularity` | enum | Yes | One of: `daily`, `weekly`, `monthly`, `yearly`, `significant` |
 | `date` | string | Yes | Date string matching `^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$` |
-| `content` | string | Yes | Memory content (first-person perspective) |
+| `content` | string | Yes | Memory content (first-person perspective). Each bullet point should include `[chat:id]` and `[via:instanceId]` tags. |
 | `chatIds` | string[] | No | Related conversation IDs |
 | `instanceId` | string | Yes | Current embodiment ID |
 | `participatingInstances` | string[] | No | Other embodiments involved |

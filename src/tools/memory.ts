@@ -568,7 +568,7 @@ export function createMemoryUpdateHandler(store: FileStore) {
 export const memoryTools = {
   "memory/create": {
     description:
-      "Create a new memory entry. I use this to record things worth remembering from our conversations.",
+      "Create a new memory entry. I use this to record things worth remembering from our conversations. Tag each bullet point with the chat ID and instance: [chat:ID] [via:instanceId].",
     inputSchema: MemoryCreateSchema,
   },
   "memory/search": {

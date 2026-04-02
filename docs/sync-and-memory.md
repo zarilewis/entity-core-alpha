@@ -20,10 +20,11 @@ Embodiments sync with entity-core using a batch sync model:
 ### Instance Tagging
 
 Memory entries are tagged with:
-- `sourceInstance` — which embodiment created the memory
+- `sourceInstance` — which embodiment created the memory (in entry metadata)
 - `participatingInstances` — other embodiments involved in the conversation
+- Inline `[via:instanceId]` tag on each bullet point in memory content, alongside `[chat:id]`
 
-This metadata enables instance-aware retrieval during memory search.
+This metadata enables instance-aware retrieval during memory search and lets the entity identify the source of individual memories when multiple embodiments contribute to the same file.
 
 ### Vector Clocks
 

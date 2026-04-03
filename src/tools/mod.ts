@@ -68,6 +68,12 @@ export {
 } from "./snapshot.ts";
 
 export {
+  memoryConsolidateDescription,
+  MemoryConsolidateSchema,
+  createMemoryConsolidateHandler,
+} from "./consolidation.ts";
+
+export {
   graphTools,
   createGraphNodeCreateHandler,
   createGraphNodeGetHandler,

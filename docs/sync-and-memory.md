@@ -40,10 +40,10 @@ daily → weekly → monthly → yearly
 
 | Granularity | Description | Status |
 |-------------|-------------|--------|
-| **Daily** | Auto-generated conversation summaries | Created during conversations |
-| **Weekly** | Consolidated from daily | Planned (not yet automated) |
-| **Monthly** | Consolidated from weekly | Planned (not yet automated) |
-| **Yearly** | Consolidated from monthly | Planned (not yet automated) |
+| **Daily** | Auto-generated conversation summaries | Created during conversations (by embodiments) |
+| **Weekly** | Consolidated from daily | Cron (Sunday 5 AM) + `memory_consolidate` tool |
+| **Monthly** | Consolidated from weekly | Cron (1st of month 5 AM) + `memory_consolidate` tool |
+| **Yearly** | Consolidated from monthly | Cron (January 1st 5 AM) + `memory_consolidate` tool |
 | **Significant** | Permanently remembered events | Created manually |
 
 ### Retention Model

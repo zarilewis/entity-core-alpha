@@ -27,15 +27,20 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 
 | File | Purpose |
 |------|---------|
-| `src/mod.ts` | Entry point, server initialization |
+| `src/mod.ts` | Entry point, server initialization, consolidation cron jobs |
 | `src/server.ts` | MCP server implementation |
 | `src/types.ts` | Type definitions (InstanceInfo, MemoryEntry, etc.) |
 | `src/tools/mod.ts` | Tool registry — all MCP tools registered here |
 | `src/tools/identity.ts` | Identity file tools |
 | `src/tools/memory.ts` | Memory tools |
+| `src/tools/consolidation.ts` | Memory consolidation tool (`memory_consolidate`) |
 | `src/tools/sync.ts` | Sync tools |
 | `src/tools/snapshot.ts` | Snapshot tools |
 | `src/tools/graph.ts` | Knowledge graph tools (15 tools) |
+| `src/consolidation/mod.ts` | Consolidation module barrel export |
+| `src/consolidation/consolidator.ts` | Core consolidation logic (daily→weekly→monthly→yearly) |
+| `src/consolidation/prompts.ts` | LLM prompt templates for consolidation |
+| `src/consolidation/periods.ts` | ISO week helpers, period calculation, date filtering |
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/extraction-prompt.ts` | Shared extraction prompt, significance framework, semantic dedup |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
@@ -63,7 +68,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 
 | Document | Purpose |
 |----------|---------|
-| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (35 tools across 5 domains) |
+| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (36 tools across 6 domains) |
 | [docs/entity-philosophy.md](docs/entity-philosophy.md) | First-person convention rationale, ownership, design philosophy |
 | [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, retrieval ranking |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | Node/edge types, confidence scoring, temporal tracking, hybrid RAG |

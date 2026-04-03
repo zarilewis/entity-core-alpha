@@ -23,6 +23,9 @@ import "@std/dotenv/load";
 import { ensureDir } from "@std/fs";
 import { startServer } from "./server.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
+import { FileStore } from "./storage/mod.ts";
+import { GraphStore } from "./graph/mod.ts";
+import { runConsolidation } from "./consolidation/mod.ts";
 
 // Re-export public API
 export { createServer, startServer } from "./server.ts";
@@ -30,6 +33,7 @@ export { FileStore, createFileStore } from "./storage/mod.ts";
 export * from "./types.ts";
 export * from "./tools/mod.ts";
 export * from "./sync/mod.ts";
+export * from "./consolidation/mod.ts";
 
 // Main entry point
 if (import.meta.main) {
@@ -42,4 +46,45 @@ if (import.meta.main) {
     ...DEFAULT_SERVER_CONFIG,
     dataDir,
   });
+
+  // Set up consolidation cron jobs (requires --unstable-cron)
+  const store = new FileStore(dataDir);
+  const graphStore = new GraphStore(dataDir);
+  await store.initialize();
+  await graphStore.initialize();
+
+  // Weekly: Sunday at 5 AM
+  Deno.cron("memory-weekly-consolidation", "0 5 * * 7", async () => {
+    console.error("[Cron] Running weekly consolidation...");
+    const result = await runConsolidation(store, graphStore, "weekly");
+    if (result.success) {
+      console.error(`[Cron] Weekly consolidation complete: ${result.dateStr}`);
+    } else {
+      console.error(`[Cron] Weekly consolidation: ${result.error}`);
+    }
+  });
+
+  // Monthly: 1st of month at 5 AM
+  Deno.cron("memory-monthly-consolidation", "0 5 1 * *", async () => {
+    console.error("[Cron] Running monthly consolidation...");
+    const result = await runConsolidation(store, graphStore, "monthly");
+    if (result.success) {
+      console.error(`[Cron] Monthly consolidation complete: ${result.dateStr}`);
+    } else {
+      console.error(`[Cron] Monthly consolidation: ${result.error}`);
+    }
+  });
+
+  // Yearly: January 1st at 5 AM
+  Deno.cron("memory-yearly-consolidation", "0 5 1 1 *", async () => {
+    console.error("[Cron] Running yearly consolidation...");
+    const result = await runConsolidation(store, graphStore, "yearly");
+    if (result.success) {
+      console.error(`[Cron] Yearly consolidation complete: ${result.dateStr}`);
+    } else {
+      console.error(`[Cron] Yearly consolidation: ${result.error}`);
+    }
+  });
+
+  console.error("[Cron] Consolidation cron jobs registered (weekly/monthly/yearly at 5 AM)");
 }

@@ -29,6 +29,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | `memory/list` | List my memories by granularity |
 | `memory/read` | Read a single memory entry by granularity and date. Returns full content and metadata (source instance, version, timestamps). |
 | `memory/update` | Overwrite a memory entry (no append merge). Use to correct inaccuracies in recorded memories. Preserves existing metadata (source instance, chat IDs), increments version, sets `updatedAt`. Re-extracts entities to the knowledge graph in the background. Tracks who made the edit via `editedBy`. |
+| `memory_consolidate` | Consolidate memories across time periods (daily→weekly, weekly→monthly, monthly→yearly). Use `all=true` for catch-up consolidation of all unconsolidated periods. Use `granularity` for a specific level. Requires `ENTITY_CORE_LLM_API_KEY`. |
 
 ### memory/create Inputs
 

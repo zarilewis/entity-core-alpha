@@ -31,7 +31,7 @@ The core communicates exclusively over **stdio** using the MCP protocol. Embodim
 | Domain | Tools | Description |
 |--------|-------|-------------|
 | Identity | 6 | Read, write, append, prepend, update, delete identity files |
-| Memory | 3 | Create, search, list memories with instance tagging |
+| Memory | 4 | Create, search, list memories with instance tagging; consolidate (daily→weekly→monthly→yearly) |
 | Sync | 3 | Pull, push, check status across embodiments |
 | Snapshots | 4 | Create, list, inspect, restore identity backups |
 | Knowledge Graph | 17 | Nodes, edges, traversal, search, batch ops |
@@ -50,9 +50,15 @@ entity-core/
 │   │   ├── mod.ts          # Tool registry
 │   │   ├── identity.ts     # Identity file tools
 │   │   ├── memory.ts       # Memory operation tools
+│   │   ├── consolidation.ts # Memory consolidation tool
 │   │   ├── sync.ts         # Sync protocol tools
 │   │   ├── snapshot.ts     # Snapshot management tools
 │   │   └── graph.ts        # Knowledge graph tools (17 tools)
+│   ├── consolidation/
+│   │   ├── mod.ts          # Barrel export
+│   │   ├── consolidator.ts # Core consolidation logic
+│   │   ├── prompts.ts      # LLM prompt templates
+│   │   └── periods.ts      # ISO week helpers, date filtering
 │   ├── graph/
 │   │   ├── mod.ts          # Barrel export
 │   │   ├── types.ts        # GraphNode, GraphEdge types

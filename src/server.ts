@@ -49,6 +49,9 @@ import {
   createGraphInsightsHandler,
   createGraphStatsHandler,
   createGraphWriteTransactionHandler,
+  createMemoryConsolidateHandler,
+  MemoryConsolidateSchema,
+  memoryConsolidateDescription,
 } from "./tools/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
@@ -553,6 +556,31 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createSnapshotGetHandler(store);
       const result = await handler({ snapshotId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // Register consolidation tool
+  server.tool(
+    "memory_consolidate",
+    memoryConsolidateDescription,
+    {
+      granularity: MemoryConsolidateSchema.shape.granularity,
+      targetDate: MemoryConsolidateSchema.shape.targetDate,
+      all: MemoryConsolidateSchema.shape.all,
+    },
+    async ({ granularity, targetDate, all }) => {
+      await store.initialize();
+      await graphStore.initialize();
+      const handler = createMemoryConsolidateHandler(store, graphStore);
+      const result = await handler({ granularity, targetDate, all });
       return {
         content: [
           {

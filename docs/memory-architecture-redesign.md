@@ -124,7 +124,7 @@ Filename: `first-conversation-with-user_psycheros.md`
 1. ~~**Remove Generated tags** — Psycheros `formatMemoryContent()` in `src/memory/file-writer.ts`~~ **DONE**
 2. ~~**Fix significant memory filenames** — Psycheros `create-significant-memory.ts`, update format~~ **DONE**
 3. ~~**Instance-scoped daily filenames** — Psycheros file-writer + entity-core sync_pull/sync_push~~ **DONE**
-4. **Remove sync_push memory merge** — Entity-core conflict.ts (no longer needed with per-instance files)
+4. ~~**Remove sync_push memory merge** — Entity-core conflict.ts~~ **DONE**
 5. **Move consolidation to entity-core** — New consolidation tool/cron in entity-core, remove from Psycheros
 
 ## Open Questions

@@ -14,7 +14,7 @@ Embodiments sync with entity-core using a batch sync model:
 ### Conflict Resolution
 
 - **Identity files**: Last-write-wins with instance priority tiebreaker
-- **Memories**: Both versions preserved (append-only), consolidated later
+- **Memories**: Last-write-wins (incoming version overwrites). Daily memories use instance-scoped filenames (`YYYY-MM-DD_instance.md`), so each instance owns its file exclusively — conflicts cannot occur. For other granularities (weekly/monthly/yearly/significant), the incoming push is authoritative.
 - **Memory edits**: The `memory/update` tool intentionally overwrites content (no merge). This is for user-initiated corrections from the Memories UI. The `editedBy` field and version bump distinguish edits from sync-generated content.
 
 ### Instance Tagging

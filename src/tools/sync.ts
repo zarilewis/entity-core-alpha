@@ -14,7 +14,7 @@ import type {
   IdentityFile,
   MemoryEntry,
 } from "../types.ts";
-import { resolveIdentityConflict, resolveMemoryConflict } from "../sync/mod.ts";
+import { resolveIdentityConflict } from "../sync/mod.ts";
 import {
   createFullSnapshot,
   cleanupOldSnapshots,
@@ -195,16 +195,10 @@ export function createSyncPushHandler(store: FileStore) {
         updatedAt: change.updatedAt || now,
       };
 
-      // Check for existing memory
-      const existing = await store.readMemory(change.granularity, change.date, change.sourceInstance);
-
-      if (existing && existing.content !== change.content) {
-        // For memories, merge both versions
-        const { winner } = resolveMemoryConflict(memoryEntry, existing);
-        await store.writeMemory(winner);
-      } else {
-        await store.writeMemory(memoryEntry);
-      }
+      // Always use the incoming version (last-write-wins).
+      // With per-instance daily filenames, conflicts shouldn't occur for dailies.
+      // For other granularities, the incoming edit is authoritative.
+      await store.writeMemory(memoryEntry);
     }
 
     // Increment server version

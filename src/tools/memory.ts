@@ -63,6 +63,7 @@ export const MemoryUpdateSchema = z.object({
   date: z.string().regex(/^\d{4}(-W\d{2}|(-\d{2})?(-\d{2})?)$/),
   content: z.string().min(1),
   editedBy: z.string().optional(),
+  instanceId: z.string().optional(),
 });
 
 /**
@@ -534,10 +535,10 @@ export function createMemoryReadHandler(store: FileStore) {
  */
 export function createMemoryUpdateHandler(store: FileStore) {
   return async (input: z.infer<typeof MemoryUpdateSchema>): Promise<MemoryUpdateOutput> => {
-    const { granularity, date, content, editedBy } = input;
+    const { granularity, date, content, editedBy, instanceId } = input;
 
     // Read existing memory to preserve metadata
-    const existing = await store.readMemory(granularity, date);
+    const existing = await store.readMemory(granularity, date, instanceId);
 
     const memory: MemoryEntry = {
       id: `${granularity}-${date}`,

@@ -148,17 +148,23 @@ export class FileStore {
 
   /**
    * Get the file path for a memory entry.
+   * Daily memories use instance-scoped filenames: YYYY-MM-DD_{instance}.md
+   * Other granularities use the date directly: {date}.md
    */
-  getMemoryPath(entry: { granularity: Granularity; date: string }): string {
-    const { granularity, date } = entry;
-    return join(this.dataDir, "memories", granularity, `${date}.md`);
+  getMemoryPath(entry: { granularity: Granularity; date: string; sourceInstance?: string }): string {
+    const { granularity, date, sourceInstance } = entry;
+    const filename = (granularity === "daily" && sourceInstance)
+      ? `${date}_${sourceInstance}.md`
+      : `${date}.md`;
+    return join(this.dataDir, "memories", granularity, filename);
   }
 
   /**
-   * Read a memory file by granularity and date.
+   * Read a memory file by granularity, date, and optionally instance.
+   * For daily memories, instance is required to find the correct file.
    */
-  async readMemory(granularity: Granularity, date: string): Promise<MemoryEntry | null> {
-    const filePath = this.getMemoryPath({ granularity, date });
+  async readMemory(granularity: Granularity, date: string, sourceInstance?: string): Promise<MemoryEntry | null> {
+    const filePath = this.getMemoryPath({ granularity, date, sourceInstance });
 
     try {
       const content = await Deno.readTextFile(filePath);
@@ -170,7 +176,7 @@ export class FileStore {
         date,
         content,
         chatIds: [], // TODO: Parse from content
-        sourceInstance: "unknown", // TODO: Parse from content
+        sourceInstance: sourceInstance ?? "unknown",
         version: 1,
         createdAt: stat.birthtime?.toISOString() ?? new Date().toISOString(),
         updatedAt: stat.mtime?.toISOString() ?? new Date().toISOString(),
@@ -185,6 +191,7 @@ export class FileStore {
 
   /**
    * List all memories of a granularity.
+   * Parses instance suffix from filenames (e.g., 2026-03-20_psycheros.md).
    */
   async listMemories(granularity: Granularity): Promise<MemoryEntry[]> {
     const dir = join(this.dataDir, "memories", granularity);
@@ -193,8 +200,13 @@ export class FileStore {
     try {
       for await (const entry of Deno.readDir(dir)) {
         if (entry.isFile && entry.name.endsWith(".md")) {
-          const date = entry.name.replace(".md", "");
-          const memory = await this.readMemory(granularity, date);
+          // Parse filename: YYYY-MM-DD.md or YYYY-MM-DD_instance.md
+          const stem = entry.name.replace(/\.md$/, "");
+          const date = stem.replace(/_\w+$/, "") || stem; // Strip instance suffix if present
+          const instanceMatch = stem.match(/^(.+?)_(\w+)$/);
+          const sourceInstance = instanceMatch ? instanceMatch[2] : undefined;
+
+          const memory = await this.readMemory(granularity, date, sourceInstance);
           if (memory) {
             memories.push(memory);
           }
@@ -211,6 +223,7 @@ export class FileStore {
 
   /**
    * Write a memory entry.
+   * Uses sourceInstance from the entry for daily filenames.
    */
   async writeMemory(entry: MemoryEntry): Promise<void> {
     const dir = join(this.dataDir, "memories", entry.granularity);
@@ -222,15 +235,16 @@ export class FileStore {
   /**
    * Archive a memory file (move to archive directory).
    */
-  async archiveMemory(granularity: Granularity, date: string): Promise<void> {
+  async archiveMemory(granularity: Granularity, date: string, sourceInstance?: string): Promise<void> {
     if (granularity !== "daily") {
       throw new Error("Only daily memories can be archived");
     }
 
-    const sourcePath = this.getMemoryPath({ granularity, date });
+    const sourcePath = this.getMemoryPath({ granularity, date, sourceInstance });
     const archiveDir = join(this.dataDir, "memories", "archive", "daily");
     await ensureDir(archiveDir);
-    const destPath = join(archiveDir, `${date}.md`);
+    const filename = sourceInstance ? `${date}_${sourceInstance}.md` : `${date}.md`;
+    const destPath = join(archiveDir, filename);
 
     try {
       await Deno.rename(sourcePath, destPath);

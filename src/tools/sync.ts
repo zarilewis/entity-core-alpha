@@ -196,7 +196,7 @@ export function createSyncPushHandler(store: FileStore) {
       };
 
       // Check for existing memory
-      const existing = await store.readMemory(change.granularity, change.date);
+      const existing = await store.readMemory(change.granularity, change.date, change.sourceInstance);
 
       if (existing && existing.content !== change.content) {
         // For memories, merge both versions

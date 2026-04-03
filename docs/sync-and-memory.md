@@ -56,11 +56,11 @@ SQLite + sqlite-vec scales well for this use case — even a lifetime of daily m
 
 ```
 data/memories/
-├── daily/          # YYYY-MM-DD.md
+├── daily/          # YYYY-MM-DD_instance.md (per-instance)
 ├── weekly/         # YYYY-WNN.md
 ├── monthly/        # YYYY-MM.md
 ├── yearly/         # YYYY.md
-└── significant/    # Descriptive filenames
+└── significant/    # slug_instance.md
 ```
 
 ## Memory Search & Retrieval

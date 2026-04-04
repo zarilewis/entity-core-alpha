@@ -122,7 +122,7 @@ PSYCHEROS_MCP_ENABLED=true deno task dev
 | `PSYCHEROS_MCP_ENABLED` | `false` | Enable MCP connection |
 | `PSYCHEROS_MCP_COMMAND` | `/home/zari/.deno/bin/deno` | Command to spawn entity-core |
 | `PSYCHEROS_MCP_ARGS` | `run -A ~/projects/entity-core/src/mod.ts` | Arguments for entity-core |
-| `PSYCHEROS_MCP_INSTANCE` | `psycheros-harness` | Instance ID for this embodiment |
+| `PSYCHEROS_MCP_INSTANCE` | `psycheros` | Instance ID for this embodiment |
 
 ## Migration
 

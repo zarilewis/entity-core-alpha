@@ -537,8 +537,12 @@ export function createMemoryUpdateHandler(store: FileStore) {
   return async (input: z.infer<typeof MemoryUpdateSchema>): Promise<MemoryUpdateOutput> => {
     const { granularity, date, content, editedBy, instanceId } = input;
 
-    // Read existing memory to preserve metadata
-    const existing = await store.readMemory(granularity, date, instanceId);
+    // Read existing memory to preserve metadata.
+    // When instanceId is not provided, search across all instance variants
+    // (e.g. for daily memories with instance-scoped filenames).
+    const existing = instanceId
+      ? await store.readMemory(granularity, date, instanceId)
+      : await store.findMemoryByDate(granularity, date);
 
     const memory: MemoryEntry = {
       id: `${granularity}-${date}`,
@@ -546,7 +550,7 @@ export function createMemoryUpdateHandler(store: FileStore) {
       date,
       content,
       chatIds: existing?.chatIds ?? [],
-      sourceInstance: existing?.sourceInstance ?? (editedBy ?? "unknown"),
+      sourceInstance: existing?.sourceInstance ?? editedBy ?? instanceId ?? "",
       participatingInstances: existing?.participatingInstances,
       version: (existing?.version ?? 0) + 1,
       createdAt: existing?.createdAt ?? new Date().toISOString(),

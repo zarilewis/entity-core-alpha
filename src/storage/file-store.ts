@@ -176,7 +176,7 @@ export class FileStore {
         date,
         content,
         chatIds: [], // TODO: Parse from content
-        sourceInstance: sourceInstance ?? "unknown",
+        sourceInstance: sourceInstance ?? "",
         version: 1,
         createdAt: stat.birthtime?.toISOString() ?? new Date().toISOString(),
         updatedAt: stat.mtime?.toISOString() ?? new Date().toISOString(),
@@ -187,6 +187,36 @@ export class FileStore {
       }
       throw error;
     }
+  }
+
+  /**
+   * Find a memory entry by date, searching across all instance variants.
+   * For daily memories, this checks for any file matching YYYY-MM-DD_*.md.
+   * For other granularities, behaves the same as readMemory.
+   * Returns the first match found, or null if none exists.
+   */
+  async findMemoryByDate(granularity: Granularity, date: string): Promise<MemoryEntry | null> {
+    // First try without instance suffix (works for non-daily)
+    const direct = await this.readMemory(granularity, date);
+    if (direct) return direct;
+
+    // For daily, scan the directory for any file matching the date prefix
+    if (granularity === "daily") {
+      const dir = join(this.dataDir, "memories", "daily");
+      try {
+        const prefix = `${date}_`;
+        for await (const entry of Deno.readDir(dir)) {
+          if (entry.isFile && entry.name.endsWith(".md") && entry.name.startsWith(prefix)) {
+            const instancePart = entry.name.replace(/\.md$/, "").slice(date.length + 1);
+            return await this.readMemory(granularity, date, instancePart);
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+      }
+    }
+
+    return null;
   }
 
   /**

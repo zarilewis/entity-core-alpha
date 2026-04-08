@@ -30,6 +30,7 @@ export const GraphNodeGetSchema = z.object({
 
 export const GraphNodeUpdateSchema = z.object({
   id: z.string().min(1),
+  type: z.string().min(1).optional(),
   label: z.string().min(1).optional(),
   description: z.string().optional(),
   properties: z.record(z.unknown()).optional(),
@@ -449,6 +450,7 @@ export function createGraphNodeUpdateHandler(store: GraphStore) {
   return (input: z.infer<typeof GraphNodeUpdateSchema>): GraphNodeUpdateOutput => {
     try {
       const node = store.updateNode(input.id, {
+        type: input.type,
         label: input.label,
         description: input.description,
         properties: input.properties,

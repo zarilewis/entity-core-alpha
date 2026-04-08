@@ -638,6 +638,7 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     graphTools["graph/node_update"].description,
     {
       id: graphTools["graph/node_update"].inputSchema.shape.id,
+      type: graphTools["graph/node_update"].inputSchema.shape.type,
       label: graphTools["graph/node_update"].inputSchema.shape.label,
       description: graphTools["graph/node_update"].inputSchema.shape.description,
       properties: graphTools["graph/node_update"].inputSchema.shape.properties,
@@ -646,10 +647,10 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       instanceId: graphTools["graph/node_update"].inputSchema.shape.instanceId,
       embedding: graphTools["graph/node_update"].inputSchema.shape.embedding,
     },
-    async ({ id, label, description, properties, confidence, lastConfirmedAt, instanceId, embedding }) => {
+    async ({ id, type, label, description, properties, confidence, lastConfirmedAt, instanceId, embedding }) => {
       await graphStore.initialize();
       const handler = createGraphNodeUpdateHandler(graphStore);
-      const result = await handler({ id, label, description, properties, confidence, lastConfirmedAt, instanceId, embedding });
+      const result = await handler({ id, type, label, description, properties, confidence, lastConfirmedAt, instanceId, embedding });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };

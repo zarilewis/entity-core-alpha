@@ -153,6 +153,7 @@ export interface CreateEdgeInput {
  * Input for updating a node.
  */
 export interface UpdateNodeInput {
+  type?: string;
   label?: string;
   description?: string;
   properties?: Record<string, unknown>;

@@ -239,6 +239,7 @@ export class GraphStore {
     const now = new Date().toISOString();
     const updated: GraphNode = {
       ...existing,
+      type: input.type ?? existing.type,
       label: input.label ?? existing.label,
       description: input.description ?? existing.description,
       properties: input.properties ?? existing.properties,
@@ -250,12 +251,13 @@ export class GraphStore {
 
     const stmt = this.db.prepare(`
       UPDATE graph_nodes SET
-        label = ?, description = ?, properties = ?,
+        type = ?, label = ?, description = ?, properties = ?,
         confidence = ?, last_confirmed_at = ?, updated_at = ?, version = ?
       WHERE id = ?
     `);
 
     stmt.run(
+      updated.type,
       updated.label,
       updated.description,
       JSON.stringify(updated.properties),

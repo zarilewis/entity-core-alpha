@@ -418,6 +418,31 @@ export class GraphStore {
   /**
    * Fall back text search when vector search is unavailable.
    */
+  private static readonly STOP_WORDS = new Set([
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
+    "into", "about", "between", "through", "during", "before", "after",
+    "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
+    "if", "then", "than", "too", "very", "just", "also", "only",
+    "up", "out", "off", "over", "under", "again", "further",
+    "i", "me", "my", "myself", "we", "us", "our", "ours",
+    "you", "your", "yours", "he", "him", "his", "she", "her",
+    "it", "its", "they", "them", "their", "what", "which", "who",
+    "whom", "when", "where", "how", "why", "all", "each", "every",
+    "some", "any", "few", "more", "most", "other", "no", "none",
+    "this", "that", "these", "those", "am", "s", "t", "d", "ll",
+    "ve", "re", "don", "doesn", "didn", "won", "wouldn", "couldn",
+    "shouldn", "isn", "aren", "wasn", "weren", "hasn", "haven",
+    "get", "got", "go", "going", "goes", "make", "know", "think",
+    "see", "come", "take", "want", "give", "use", "find", "tell",
+    "ask", "work", "seem", "feel", "try", "leave", "call",
+    "still", "thing", "things", "something", "anything", "nothing",
+    "much", "many", "well", "back", "even", "way", "really",
+    "right", "now", "here", "there", "always", "never", "often",
+  ]);
+
   private searchNodesByText(options: SearchNodesOptions): NodeSearchResult[] {
     const conditions: string[] = ["deleted = 0"];
     const params: (string | number)[] = [];
@@ -428,12 +453,12 @@ export class GraphStore {
     }
 
     if (options.query) {
-      // Tokenize query into individual words for broader matching.
-      // "tell me about apples" → match any node containing "tell", "me", "about", or "apples"
+      // Tokenize query, filter stop words, and keep meaningful terms.
+      // "tell me about apples" → match nodes containing "tell" or "apples"
       const words = options.query.toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
         .split(/\s+/)
-        .filter(w => w.length > 1);
+        .filter(w => w.length > 1 && !GraphStore.STOP_WORDS.has(w));
       if (words.length > 0) {
         const likeClauses = words.map(() => "(label LIKE ? OR description LIKE ?)").join(" OR ");
         conditions.push(`(${likeClauses})`);
@@ -475,7 +500,7 @@ export class GraphStore {
     // Score based on how many query words match in label vs description
     return rows.map((row) => {
       if (!options.query) return { node: this.rowToNode(row), score: 0.5 };
-      const words = options.query.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 1);
+      const words = options.query.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 1 && !GraphStore.STOP_WORDS.has(w));
       if (words.length === 0) return { node: this.rowToNode(row), score: 0.5 };
       const label = row.label.toLowerCase();
       const desc = (row.description || "").toLowerCase();

@@ -400,11 +400,19 @@ export class GraphStore {
     >(...params, serialized, knnCount, 2 * (1 - minScore), limit);
     stmt.finalize();
 
-    return rows.map((row) => ({
+    const vectorResults = rows.map((row) => ({
       node: this.rowToNode(row),
       // Convert distance (0 = identical, 2 = opposite for cosine) to score (1 = identical, 0 = different)
       score: Math.max(0, 1 - row.distance / 2),
     }));
+
+    // If vector search found nothing, many nodes may lack embeddings.
+    // Fall back to text search so results are still returned.
+    if (vectorResults.length === 0 && options.query) {
+      return this.searchNodesByText(options);
+    }
+
+    return vectorResults;
   }
 
   /**
@@ -420,9 +428,19 @@ export class GraphStore {
     }
 
     if (options.query) {
-      conditions.push("(label LIKE ? OR description LIKE ?)");
-      const searchTerm = `%${options.query}%`;
-      params.push(searchTerm, searchTerm);
+      // Tokenize query into individual words for broader matching.
+      // "tell me about apples" → match any node containing "tell", "me", "about", or "apples"
+      const words = options.query.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 1);
+      if (words.length > 0) {
+        const likeClauses = words.map(() => "(label LIKE ? OR description LIKE ?)").join(" OR ");
+        conditions.push(`(${likeClauses})`);
+        for (const word of words) {
+          params.push(`%${word}%`, `%${word}%`);
+        }
+      }
     }
 
     const limit = options.limit ?? 10;
@@ -454,13 +472,17 @@ export class GraphStore {
     >(...params, limit);
     stmt.finalize();
 
-    // Simple scoring based on text match
-    return rows.map((row) => ({
-      node: this.rowToNode(row),
-      score: options.query
-        ? (row.label.toLowerCase().includes(options.query.toLowerCase()) ? 0.8 : 0.5)
-        : 0.5,
-    }));
+    // Score based on how many query words match in label vs description
+    return rows.map((row) => {
+      if (!options.query) return { node: this.rowToNode(row), score: 0.5 };
+      const words = options.query.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 1);
+      if (words.length === 0) return { node: this.rowToNode(row), score: 0.5 };
+      const label = row.label.toLowerCase();
+      const desc = (row.description || "").toLowerCase();
+      const matchCount = words.filter(w => label.includes(w) || desc.includes(w)).length;
+      const score = Math.max(0.3, matchCount / words.length);
+      return { node: this.rowToNode(row), score };
+    });
   }
 
   /**

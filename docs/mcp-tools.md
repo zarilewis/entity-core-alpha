@@ -10,7 +10,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | `identity/write` | Replace one of my identity files entirely |
 | `identity/append` | Append content to an identity file (before closing XML tag) |
 | `identity/prepend` | Prepend content to an identity file (after opening XML tag) |
-| `identity/update_section` | Update a specific markdown section within a file |
+| `identity/update_section` | Append content to a specific markdown section within a file (preserves existing content) |
 | `identity/delete_custom` | Delete a custom identity file (custom category only) |
 
 ### Identity File Categories

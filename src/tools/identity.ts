@@ -160,7 +160,8 @@ function prependToXmlContent(
 }
 
 /**
- * Update content within a specific markdown section.
+ * Append content within a specific markdown section.
+ * New content is added after any existing content in the section.
  */
 function updateSection(
   existingContent: string,
@@ -199,7 +200,11 @@ function updateSection(
     ? `\n<!-- Updated ${today}: ${reason} -->`
     : `\n<!-- Updated ${today} -->`;
 
-  const newSection = `${match[0]}${timestampComment}\n${newSectionContent.trim()}`;
+  // Preserve existing content in the section and append new content after it
+  const existingSectionContent = innerContent.slice(headingEndIndex, endIndex).trim();
+  const newSection = existingSectionContent
+    ? `${match[0]}${timestampComment}\n${existingSectionContent}\n\n${newSectionContent.trim()}`
+    : `${match[0]}${timestampComment}\n${newSectionContent.trim()}`;
   const newInnerContent =
     innerContent.slice(0, startIndex) + newSection + innerContent.slice(endIndex);
 
@@ -457,7 +462,7 @@ export const identityTools = {
   },
   "identity/update_section": {
     description:
-      "Update a specific section in one of my identity files. The section is identified by its markdown heading.",
+      "Append content to a specific section in one of my identity files. The section is identified by its markdown heading. Existing content in the section is preserved.",
     inputSchema: IdentityUpdateSectionSchema,
   },
   "identity/delete_custom": {

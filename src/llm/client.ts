@@ -205,14 +205,14 @@ export class LLMClient {
 /**
  * Create an LLM client from environment variables.
  *
- * Required env vars:
+ * Required env vars (passed by Psycheros or set manually):
  * - ENTITY_CORE_LLM_API_KEY: API key for the LLM
+ * - ENTITY_CORE_LLM_BASE_URL: API base URL
+ * - ENTITY_CORE_LLM_MODEL: Model to use
  *
  * Optional env vars:
- * - ENTITY_CORE_LLM_BASE_URL: API base URL (default: z.ai endpoint)
- * - ENTITY_CORE_LLM_MODEL: Model to use (default: glm-4.7)
  * - ENTITY_CORE_LLM_TEMPERATURE: Temperature for sampling (default: 0.3 for extraction)
- * - ENTITY_CORE_LLM_MAX_TOKENS: Max tokens in response (default: 2000)
+ * - ENTITY_CORE_LLM_MAX_TOKENS: Max tokens in response (default: 4000)
  *
  * Falls back to Psycheros env vars (ZAI_*) if entity-core specific vars not set.
  */
@@ -229,12 +229,24 @@ export function createLLMClient(): LLMClient | null {
   }
 
   const baseUrl = Deno.env.get("ENTITY_CORE_LLM_BASE_URL") ||
-    Deno.env.get("ZAI_BASE_URL") ||
-    "https://api.z.ai/api/coding/paas/v4/chat/completions";
+    Deno.env.get("ZAI_BASE_URL");
+
+  if (!baseUrl) {
+    console.log(
+      "[LLM] No ENTITY_CORE_LLM_BASE_URL or ZAI_BASE_URL set - extraction features disabled",
+    );
+    return null;
+  }
 
   const model = Deno.env.get("ENTITY_CORE_LLM_MODEL") ||
-    Deno.env.get("ZAI_MODEL") ||
-    "glm-4.7";
+    Deno.env.get("ZAI_MODEL");
+
+  if (!model) {
+    console.log(
+      "[LLM] No ENTITY_CORE_LLM_MODEL or ZAI_MODEL set - extraction features disabled",
+    );
+    return null;
+  }
 
   const temperatureStr = Deno.env.get("ENTITY_CORE_LLM_TEMPERATURE");
   const temperature = temperatureStr ? parseFloat(temperatureStr) : 0.3; // Lower temp for extraction

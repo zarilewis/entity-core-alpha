@@ -117,17 +117,11 @@ function parseXmlContent(content: string): {
 function appendToXmlContent(
   existingContent: string,
   newContent: string,
-  reason?: string
+  _reason?: string
 ): string {
-  const today = new Date().toISOString().split("T")[0];
   const { tag, innerContent } = parseXmlContent(existingContent);
 
-  let addition = newContent.trim();
-  if (reason) {
-    addition = `\n\n<!-- Added ${today}: ${reason} -->\n${addition}`;
-  } else {
-    addition = `\n\n<!-- Added ${today} -->\n${addition}`;
-  }
+  let addition = `\n\n${newContent.trim()}`;
 
   if (tag) {
     return `<${tag}>\n${innerContent}${addition}\n</${tag}>\n`;
@@ -141,17 +135,11 @@ function appendToXmlContent(
 function prependToXmlContent(
   existingContent: string,
   newContent: string,
-  reason?: string
+  _reason?: string
 ): string {
-  const today = new Date().toISOString().split("T")[0];
   const { tag, innerContent } = parseXmlContent(existingContent);
 
-  let addition = newContent.trim();
-  if (reason) {
-    addition = `<!-- Added ${today}: ${reason} -->\n${addition}\n\n`;
-  } else {
-    addition = `<!-- Added ${today} -->\n${addition}\n\n`;
-  }
+  let addition = `${newContent.trim()}\n\n`;
 
   if (tag) {
     return `<${tag}>\n${addition}${innerContent}\n</${tag}>\n`;
@@ -167,9 +155,8 @@ function updateSection(
   existingContent: string,
   sectionName: string,
   newSectionContent: string,
-  reason?: string
+  _reason?: string
 ): { content: string; found: boolean } {
-  const today = new Date().toISOString().split("T")[0];
   const { tag, innerContent } = parseXmlContent(existingContent);
 
   const headingPattern = new RegExp(
@@ -196,15 +183,11 @@ function updateSection(
     endIndex = headingEndIndex + nextMatch.index;
   }
 
-  const timestampComment = reason
-    ? `\n<!-- Updated ${today}: ${reason} -->`
-    : `\n<!-- Updated ${today} -->`;
-
   // Preserve existing content in the section and append new content after it
   const existingSectionContent = innerContent.slice(headingEndIndex, endIndex).trim();
   const newSection = existingSectionContent
-    ? `${match[0]}${timestampComment}\n${existingSectionContent}\n\n${newSectionContent.trim()}`
-    : `${match[0]}${timestampComment}\n${newSectionContent.trim()}`;
+    ? `${match[0]}\n${existingSectionContent}\n\n${newSectionContent.trim()}`
+    : `${match[0]}\n${newSectionContent.trim()}`;
   const newInnerContent =
     innerContent.slice(0, startIndex) + newSection + innerContent.slice(endIndex);
 

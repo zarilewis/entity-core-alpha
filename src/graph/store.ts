@@ -7,7 +7,7 @@
 
 import { Database } from "@db/sqlite";
 import { join, dirname, fromFileUrl } from "@std/path";
-import { ensureDir } from "@std/fs";
+import { ensureDir, exists } from "@std/fs";
 import {
   initializeGraphSchema,
   verifyVectorTableSync,
@@ -45,6 +45,135 @@ function serializeVector(vec: number[]): Uint8Array {
 }
 
 /**
+ * Detect the current platform and return a sqlite-vec release asset name.
+ * Returns null if the platform is unsupported.
+ */
+function detectPlatformAsset(): string | null {
+  const { Deno } = globalThis;
+  const os = Deno.build.os;
+  const arch = Deno.build.arch;
+
+  const osMap: Record<string, string> = {
+    linux: "linux",
+    darwin: "macos",
+    windows: "windows",
+  };
+  const archMap: Record<string, string> = {
+    x86_64: "x86_64",
+    aarch64: "aarch64",
+  };
+
+  const osName = osMap[os];
+  const archName = archMap[arch];
+  if (!osName || !archName) return null;
+
+  return `sqlite-vec-0.1.9-loadable-${osName}-${archName}.tar.gz`;
+}
+
+/**
+ * Get the expected extension filename for the current platform.
+ */
+function getPlatformExtension(): string {
+  const os = Deno.build.os;
+  switch (os) {
+    case "windows": return "vec0.dll";
+    case "darwin": return "vec0.dylib";
+    default: return "vec0.so";
+  }
+}
+
+/**
+ * Attempt to auto-download the sqlite-vec extension binary from GitHub releases.
+ * Downloads and extracts to the lib/ directory if the extension file doesn't already exist.
+ */
+async function ensureVectorExtension(projectRoot: string): Promise<boolean> {
+  const libDir = join(projectRoot, "lib");
+  const extFile = getPlatformExtension();
+  const extPath = join(libDir, extFile);
+
+  // Already exists — skip download
+  if (await exists(extPath)) return true;
+
+  const assetName = detectPlatformAsset();
+  if (!assetName) {
+    console.warn(`[Graph] Unsupported platform (${Deno.build.os}/${Deno.build.arch}) for sqlite-vec auto-download`);
+    return false;
+  }
+
+  const url = `https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/${assetName}`;
+  console.log(`[Graph] sqlite-vec extension not found. Downloading ${assetName}...`);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`[Graph] Failed to download sqlite-vec: HTTP ${response.status}`);
+      return false;
+    }
+
+    await ensureDir(libDir);
+
+    // Decompress the tar.gz and extract vec0.{so,dll,dylib}
+    const tarData = new Uint8Array(await response.arrayBuffer());
+    // Use Deno's built-in decompress for gzip
+    const decompressed = new Uint8Array(
+      await new Response(
+        new Response(tarData).body!.pipeThrough(new DecompressionStream("gzip"))
+      ).arrayBuffer()
+    );
+
+    // Find the vec0 file in the tar archive
+    const vec0Offset = findTarEntry(decompressed, extFile);
+    if (vec0Offset === null) {
+      console.error("[Graph] Downloaded archive does not contain expected file");
+      return false;
+    }
+
+    await Deno.writeFile(extPath, decompressed.subarray(vec0Offset.dataOffset, vec0Offset.dataOffset + vec0Offset.size));
+    console.log(`[Graph] sqlite-vec extension installed to ${extPath}`);
+    return true;
+  } catch (error) {
+    console.error("[Graph] Failed to download sqlite-vec:", error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
+interface TarEntry { dataOffset: number; size: number }
+
+/**
+ * Find a file entry in a raw tar archive and return its data offset and size.
+ * Minimal tar parser — only handles regular files with no extended headers.
+ */
+function findTarEntry(data: Uint8Array, filename: string): TarEntry | null {
+  let offset = 0;
+  while (offset + 512 <= data.length) {
+    const header = data.subarray(offset, offset + 512);
+
+    // Check for end-of-archive (two zero blocks)
+    if (header.every(b => b === 0)) break;
+
+    // Filename is at offset 0, null-terminated, max 100 bytes
+    const nameBytes = header.subarray(0, 100);
+    const nullIdx = nameBytes.indexOf(0);
+    const name = new TextDecoder().decode(nameBytes.subarray(0, nullIdx === -1 ? 100 : nullIdx));
+
+    if (name === filename) {
+      // Size is at offset 124, 12 bytes, octal ASCII
+      const sizeStr = new TextDecoder().decode(header.subarray(124, 136)).trim();
+      const size = parseInt(sizeStr, 8) || 0;
+      // File data starts at next 512-byte boundary after header
+      return { dataOffset: offset + 512, size };
+    }
+
+    // Size of this entry's data
+    const sizeStr = new TextDecoder().decode(header.subarray(124, 136)).trim();
+    const size = parseInt(sizeStr, 8) || 0;
+    // Advance past header + data (padded to 512-byte blocks)
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  return null;
+}
+
+/**
  * GraphStore provides access to the knowledge graph.
  */
 export class GraphStore {
@@ -71,6 +200,11 @@ export class GraphStore {
     // Ensure data directory exists
     await ensureDir(join(this.dbPath, ".."));
 
+    // Auto-download sqlite-vec extension if missing
+    const moduleDir = dirname(fromFileUrl(import.meta.url));
+    const projectRoot = join(moduleDir, "..", "..");
+    await ensureVectorExtension(projectRoot);
+
     // Load sqlite-vec extension for vector search
     this.loadVectorExtension();
 
@@ -90,9 +224,12 @@ export class GraphStore {
    */
   private loadVectorExtension(): void {
     const moduleDir = dirname(fromFileUrl(import.meta.url));
+    const extFile = getPlatformExtension();
     const candidates = [
-      join(moduleDir, "..", "..", "lib", "vec0"),           // entity-core/lib/vec0
-      join(moduleDir, "..", "..", "..", "Psycheros", "lib", "vec0"), // ../Psycheros/lib/vec0
+      join(moduleDir, "..", "..", "lib", extFile),          // entity-core/lib/vec0.{so,dll,dylib}
+      join(moduleDir, "..", "..", "lib", "vec0"),           // entity-core/lib/vec0 (auto-suffix)
+      join(moduleDir, "..", "..", "..", "Psycheros", "lib", extFile), // ../Psycheros/lib/vec0.{so,dll,dylib}
+      join(moduleDir, "..", "..", "..", "Psycheros", "lib", "vec0"), // ../Psycheros/lib/vec0 (auto-suffix)
     ];
 
     try {
@@ -107,8 +244,10 @@ export class GraphStore {
         }
       }
       this.db.enableLoadExtension = false;
+      console.error("[Graph] sqlite-vec extension not available. Vector search will use text fallback.");
     } catch {
       try { this.db.enableLoadExtension = false; } catch { /* ignore */ }
+      console.error("[Graph] Failed to load sqlite-vec extension. Vector search will use text fallback.");
     }
   }
 

@@ -112,11 +112,11 @@ export const VECTOR_TABLE_SQL = `
  * @returns true if vector tables were created successfully
  */
 export function initializeGraphSchema(db: Database): boolean {
-  // Run migrations first
-  runMigrations(db);
-
-  // Create main tables
+  // Create main tables first (needed by migrations that query them)
   db.exec(GRAPH_SCHEMA);
+
+  // Run migrations after tables exist
+  runMigrations(db);
 
   // Try to create vector tables
   return initializeVectorTables(db);
@@ -132,35 +132,34 @@ function runMigrations(db: Database): void {
   // memory_ref nodes were redundant copies of memory content — the memory
   // filesystem and Psycheros' RAG system handle substance. The graph is now
   // a relational index of durable state only.
+  //
+  // This migration only runs if there are existing memory_ref nodes to clean up.
+  // On fresh databases, there are no memory_ref nodes, so this is a no-op.
 
-  // Check if memory_node_links table exists
-  const hasLinksTable = db
-    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_node_links'")
-    .get();
-
-  if (hasLinksTable) {
-    // Drop the memory_node_links table
-    db.exec("DROP TABLE IF EXISTS memory_node_links");
-    console.log("[Graph] Migration: dropped memory_node_links table");
-  }
-
-  // Check if idx_graph_nodes_source_memory index exists
-  const hasMemoryIndex = db
-    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_graph_nodes_source_memory'")
-    .get();
-
-  if (hasMemoryIndex) {
-    db.exec("DROP INDEX IF EXISTS idx_graph_nodes_source_memory");
-    console.log("[Graph] Migration: dropped idx_graph_nodes_source_memory index");
-  }
-
-  // Soft-delete all existing memory_ref nodes and their edges
-  const now = new Date().toISOString();
+  // Check if any memory_ref nodes exist (only then do we need to migrate)
   const memoryRefCount = db
     .prepare("SELECT COUNT(*) as count FROM graph_nodes WHERE type = 'memory_ref' AND deleted = 0")
     .get<{ count: number }>()?.count ?? 0;
 
   if (memoryRefCount > 0) {
+    const now = new Date().toISOString();
+
+    // Drop the memory_node_links table if it exists
+    try {
+      db.exec("DROP TABLE IF EXISTS memory_node_links");
+      console.log("[Graph] Migration: dropped memory_node_links table");
+    } catch {
+      // Table may not exist
+    }
+
+    // Drop the source_memory index if it exists
+    try {
+      db.exec("DROP INDEX IF EXISTS idx_graph_nodes_source_memory");
+      console.log("[Graph] Migration: dropped idx_graph_nodes_source_memory index");
+    } catch {
+      // Index may not exist
+    }
+
     // Soft-delete memory_ref nodes
     db.exec("UPDATE graph_nodes SET deleted = 1, updated_at = ? WHERE type = 'memory_ref' AND deleted = 0", [now]);
 

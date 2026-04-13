@@ -88,7 +88,7 @@ finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15
 
 ### Fallback
 
-If vector search is unavailable (sqlite-vec not loaded, embedding model fails), the system falls back to text-based substring matching with instance boosting. The `method` field in results indicates which search method was used.
+If vector search is unavailable (sqlite-vec not loaded, embedding model fails), the system falls back to text-based substring matching with instance boosting. The `method` field in results indicates which search method was used. On first run, the sqlite-vec extension is automatically downloaded from GitHub releases if not found in `lib/`.
 
 ### Instance Relevance
 

@@ -8,6 +8,8 @@ Episodic content (events, stories, one-off experiences) belongs in the memory sy
 
 The graph is stored in `data/graph.db` using SQLite with the sqlite-vec extension for vector similarity search on entity nodes. Schema is defined in `src/graph/schema.ts`.
 
+If the sqlite-vec extension is not found in `lib/` at startup, entity-core automatically downloads the correct prebuilt binary from the [sqlite-vec GitHub releases](https://github.com/asg017/sqlite-vec/releases/tag/v0.1.9) (v0.1.9) and caches it. This covers Linux, macOS, and Windows on both x86-64 and aarch64. The download requires internet access on first run; subsequent runs use the cached file.
+
 ## Node Types
 
 Predefined node types provide semantic structure, but arbitrary custom types are also allowed:
@@ -175,7 +177,9 @@ The script uses the same LLM client, embedder, and extraction prompt as the real
 
 ## Schema Migrations
 
-The graph uses automatic migrations in `src/graph/schema.ts` that run on initialization. The migration for removing `memory_ref` support:
+The graph uses automatic migrations in `src/graph/schema.ts` that run on initialization. Tables are created first, then migrations are applied — migrations are conditional and only perform work when affected data exists (e.g., `memory_ref` nodes must be present for the cleanup migration to run).
+
+The migration for removing `memory_ref` support:
 
 - Drops the `memory_node_links` table
 - Drops the `idx_graph_nodes_source_memory` index

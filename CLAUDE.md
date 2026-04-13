@@ -41,7 +41,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/consolidation/consolidator.ts` | Core consolidation logic (daily→weekly→monthly→yearly) |
 | `src/consolidation/prompts.ts` | LLM prompt templates for consolidation |
 | `src/consolidation/periods.ts` | ISO week helpers, period calculation, date filtering |
-| `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
+| `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec, auto-downloads extension from GitHub releases) |
 | `src/graph/extraction-prompt.ts` | Shared extraction prompt, significance framework, semantic dedup |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `scripts/batch-populate-graph.ts` | Batch backfill graph from existing memory files |

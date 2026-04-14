@@ -26,6 +26,7 @@ export const MemoryCreateSchema = z.object({
   chatIds: z.array(z.string()).optional().default([]),
   instanceId: z.string().min(1),
   participatingInstances: z.array(z.string()).optional(),
+  slug: z.string().optional(),
 });
 
 /**
@@ -128,7 +129,7 @@ export interface MemoryListOutput {
  */
 export function createMemoryCreateHandler(store: FileStore) {
   return async (input: z.infer<typeof MemoryCreateSchema>): Promise<MemoryCreateOutput> => {
-    const { granularity, date, content, chatIds, instanceId, participatingInstances } = input;
+    const { granularity, date, content, chatIds, instanceId, participatingInstances, slug } = input;
 
     const memory: MemoryEntry = {
       id: `${granularity}-${date}`,
@@ -141,6 +142,7 @@ export function createMemoryCreateHandler(store: FileStore) {
       version: 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      slug: slug,
     };
 
     await store.writeMemory(memory);

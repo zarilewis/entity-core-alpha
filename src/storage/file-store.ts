@@ -151,11 +151,16 @@ export class FileStore {
    * Daily memories use instance-scoped filenames: YYYY-MM-DD_{instance}.md
    * Other granularities use the date directly: {date}.md
    */
-  getMemoryPath(entry: { granularity: Granularity; date: string; sourceInstance?: string }): string {
-    const { granularity, date, sourceInstance } = entry;
-    const filename = (granularity === "daily" && sourceInstance)
-      ? `${date}_${sourceInstance}.md`
-      : `${date}.md`;
+  getMemoryPath(entry: { granularity: Granularity; date: string; sourceInstance?: string; slug?: string }): string {
+    const { granularity, date, sourceInstance, slug } = entry;
+    let filename: string;
+    if (granularity === "daily" && sourceInstance) {
+      filename = `${date}_${sourceInstance}.md`;
+    } else if (granularity === "significant" && slug) {
+      filename = `${date}_${slug}.md`;
+    } else {
+      filename = `${date}.md`;
+    }
     return join(this.dataDir, "memories", granularity, filename);
   }
 

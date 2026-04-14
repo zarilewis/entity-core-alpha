@@ -79,6 +79,8 @@ export interface MemoryEntry {
   createdAt: string;
   /** When this memory was last updated */
   updatedAt: string;
+  /** Optional slug for significant memory filenames (e.g., "first-conversation") */
+  slug?: string;
 }
 
 /**

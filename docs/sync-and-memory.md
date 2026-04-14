@@ -60,7 +60,7 @@ data/memories/
 ├── weekly/         # YYYY-WNN.md
 ├── monthly/        # YYYY-MM.md
 ├── yearly/         # YYYY.md
-└── significant/    # slug_instance.md
+└── significant/    # YYYY-MM-DD_slug.md
 ```
 
 ## Memory Search & Retrieval

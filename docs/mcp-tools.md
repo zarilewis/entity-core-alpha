@@ -41,6 +41,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | `chatIds` | string[] | No | Related conversation IDs |
 | `instanceId` | string | Yes | Current embodiment ID |
 | `participatingInstances` | string[] | No | Other embodiments involved |
+| `slug` | string | No | Slug for significant memory filename (e.g., `first-conversation`). When provided, entity-core stores the file as `YYYY-MM-DD_slug.md` to match the embodiment's local filename. |
 
 ### memory/read Inputs
 

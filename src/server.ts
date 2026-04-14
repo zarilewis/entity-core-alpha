@@ -227,8 +227,9 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       chatIds: memoryTools["memory/create"].inputSchema.shape.chatIds,
       instanceId: memoryTools["memory/create"].inputSchema.shape.instanceId,
       participatingInstances: memoryTools["memory/create"].inputSchema.shape.participatingInstances,
+      slug: memoryTools["memory/create"].inputSchema.shape.slug,
     },
-    async ({ granularity, date, content, chatIds, instanceId, participatingInstances }) => {
+    async ({ granularity, date, content, chatIds, instanceId, participatingInstances, slug }) => {
       await store.initialize();
       const handler = createMemoryCreateHandler(store);
       const result = await handler({
@@ -238,6 +239,7 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
         chatIds: chatIds ?? [],
         instanceId,
         participatingInstances,
+        slug,
       });
 
       // After memory is written, extract to graph (fire-and-forget)

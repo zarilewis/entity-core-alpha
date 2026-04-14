@@ -6,9 +6,12 @@ Identity file snapshots are automatic backups that protect against accidental da
 
 | Trigger | Description |
 |---------|-------------|
-| **Automatic** | Before any identity file replacement via `identity_write` or `sync_push` |
+| **Automatic (identity/write)** | Before `identity_write` overwrites an existing file — creates a targeted snapshot of just that file |
+| **Automatic (sync/push)** | Before `sync_push` applies identity changes — creates a targeted snapshot per changed file |
 | **Scheduled** | During scheduled sync operations |
 | **Manual** | On-demand via the `snapshot_create` MCP tool or through the Psycheros UI |
+
+Note: `sync_push` creates targeted per-file snapshots (only the files being changed), not a full snapshot of all identity files.
 
 ## Storage
 

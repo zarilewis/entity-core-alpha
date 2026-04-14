@@ -8,6 +8,7 @@
 import { z } from "zod";
 import type { FileStore } from "../storage/mod.ts";
 import type { IdentityFile } from "../types.ts";
+import { createSnapshot } from "../snapshot/mod.ts";
 
 /**
  * Schema for identity category.
@@ -236,6 +237,25 @@ export function createIdentityWriteHandler(store: FileStore) {
 
     if (!filename.endsWith(".md")) {
       return { success: false, message: "Filename must end with .md" };
+    }
+
+    // Create pre-replace snapshot if file already exists
+    try {
+      const existingFiles = await store.readIdentityCategory(category);
+      const existing = existingFiles.find((f) => f.filename === filename);
+      if (existing && existing.content.trim().length > 0) {
+        await createSnapshot(
+          store,
+          category,
+          filename,
+          existing.content,
+          "pre-replace",
+          instanceId === "psycheros" ? "psycheros" : "entity-core",
+        );
+      }
+    } catch (error) {
+      console.error("[Identity] Pre-replace snapshot failed:", error);
+      // Continue with write even if snapshot fails
     }
 
     const file: IdentityFile = {

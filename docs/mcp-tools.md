@@ -7,7 +7,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | Tool | Description |
 |------|-------------|
 | `identity/get_all` | Get all my identity files (self, user, relationship, custom) |
-| `identity/write` | Replace one of my identity files entirely |
+| `identity/write` | Replace one of my identity files entirely (creates automatic pre-replace snapshot if file exists) |
 | `identity/append` | Append content to an identity file (before closing XML tag) |
 | `identity/prepend` | Prepend content to an identity file (after opening XML tag) |
 | `identity/update_section` | Append content to a specific markdown section within a file (preserves existing content) |

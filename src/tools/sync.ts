@@ -16,7 +16,7 @@ import type {
 } from "../types.ts";
 import { resolveIdentityConflict } from "../sync/mod.ts";
 import {
-  createFullSnapshot,
+  createSnapshot,
   cleanupOldSnapshots,
 } from "../snapshot/mod.ts";
 
@@ -135,10 +135,16 @@ export function createSyncPushHandler(store: FileStore) {
       lastSync: new Date().toISOString(),
     } as InstanceInfo);
 
-    // Create snapshot before applying identity changes
+    // Create targeted snapshots before applying identity changes
     if (identityChanges.length > 0) {
       try {
-        await createFullSnapshot(store, "scheduled", "entity-core");
+        for (const change of identityChanges) {
+          const existingFiles = await store.readIdentityCategory(change.category);
+          const existing = existingFiles.find((f) => f.filename === change.filename);
+          if (existing && existing.content.trim().length > 0) {
+            await createSnapshot(store, change.category, change.filename, existing.content, "pre-replace", "psycheros");
+          }
+        }
         // Cleanup old snapshots
         const retentionDays = parseInt(Deno.env.get("ENTITY_CORE_SNAPSHOT_RETENTION_DAYS") || "30");
         await cleanupOldSnapshots(store, retentionDays);

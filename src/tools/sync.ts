@@ -19,6 +19,7 @@ import {
   createSnapshot,
   cleanupOldSnapshots,
 } from "../snapshot/mod.ts";
+import { getExtractionHealth } from "../graph/memory-integration.ts";
 
 /**
  * Input schema for sync/pull tool.
@@ -226,6 +227,7 @@ export function createSyncStatusHandler() {
   return async (): Promise<{
     serverVersion: number;
     connectedInstances: Array<{ id: string; lastSync: string }>;
+    extraction: ReturnType<typeof getExtractionHealth>;
   }> => {
     return {
       serverVersion: syncState.serverVersion,
@@ -233,6 +235,7 @@ export function createSyncStatusHandler() {
         id: i.id,
         lastSync: i.lastSync ?? "never",
       })),
+      extraction: getExtractionHealth(),
     };
   };
 }

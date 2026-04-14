@@ -103,9 +103,30 @@ See [sync-and-memory.md](sync-and-memory.md) for the memory hierarchy and retrie
 |------|-------------|
 | `sync/pull` | Pull all identity and memories from my core |
 | `sync/push` | Push changes from an embodiment to my core |
-| `sync/status` | Check sync status and connected embodiments |
+| `sync/status` | Check sync status, connected embodiments, and extraction pipeline health |
 
 See [sync-and-memory.md](sync-and-memory.md) for the sync protocol and conflict resolution details.
+
+### sync/status Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `serverVersion` | number | Monotonically increasing server version |
+| `connectedInstances` | array | `{id, lastSync}` for each connected embodiment |
+| `extraction` | object | Extraction pipeline health diagnostics (see below) |
+
+### sync/status extraction Field
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `llmAvailable` | boolean | Whether an LLM client can be created (API key + model + base URL configured) |
+| `lastAttempt` | string \| null | ISO timestamp of last extraction attempt |
+| `lastSuccess` | string \| null | ISO timestamp of last successful extraction (>=1 node/edge created) |
+| `lastError` | string \| null | Error message from most recent failure |
+| `attemptsTotal` | number | Total extraction attempts since server start |
+| `successesTotal` | number | Successful extractions since server start |
+| `nodesCreatedTotal` | number | Cumulative nodes created |
+| `edgesCreatedTotal` | number | Cumulative edges created |
 
 ## Snapshot Tools
 

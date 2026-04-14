@@ -26,6 +26,50 @@ export interface ExtractionResult {
 }
 
 /**
+ * Health diagnostics for the extraction pipeline.
+ * Tracked at module level so it persists across all extraction calls.
+ */
+export interface ExtractionHealth {
+  /** Whether an LLM client can be created (API key + model + base URL all present) */
+  llmAvailable: boolean;
+  /** ISO timestamp of the last extraction attempt */
+  lastAttempt: string | null;
+  /** ISO timestamp of the last successful extraction (at least 1 node or edge created) */
+  lastSuccess: string | null;
+  /** Error message from the most recent failure, or null */
+  lastError: string | null;
+  /** Total extraction attempts since server start */
+  attemptsTotal: number;
+  /** Total successful extractions since server start */
+  successesTotal: number;
+  /** Cumulative nodes created across all extractions */
+  nodesCreatedTotal: number;
+  /** Cumulative edges created across all extractions */
+  edgesCreatedTotal: number;
+}
+
+/**
+ * Module-level extraction health state.
+ */
+let extractionHealth: ExtractionHealth = {
+  llmAvailable: false,
+  lastAttempt: null,
+  lastSuccess: null,
+  lastError: null,
+  attemptsTotal: 0,
+  successesTotal: 0,
+  nodesCreatedTotal: 0,
+  edgesCreatedTotal: 0,
+};
+
+/**
+ * Get the current extraction health snapshot.
+ */
+export function getExtractionHealth(): ExtractionHealth {
+  return { ...extractionHealth };
+}
+
+/**
  * Extract entities and relationships from a memory and create graph nodes/edges.
  *
  * This is designed to be called in the background (fire-and-forget) after a
@@ -38,16 +82,25 @@ export async function extractMemoryToGraph(
 ): Promise<ExtractionResult> {
   const empty: ExtractionResult = { nodesCreated: 0, edgesCreated: 0 };
 
+  // Record attempt
+  extractionHealth.lastAttempt = new Date().toISOString();
+  extractionHealth.attemptsTotal++;
+  extractionHealth.lastError = null;
+
   // Skip short/trivial content
   if (memory.content.trim().length < 100) {
+    extractionHealth.lastError = `Content too short (${memory.content.trim().length} chars, minimum 100)`;
     return empty;
   }
 
   // Create LLM client — returns null if no API key configured
   const llm = createLLMClient();
   if (!llm) {
+    extractionHealth.llmAvailable = false;
+    extractionHealth.lastError = "No LLM client available (missing API key, base URL, or model)";
     return empty;
   }
+  extractionHealth.llmAvailable = true;
 
   // Ensure graph store is initialized
   await graphStore.initialize();
@@ -60,7 +113,9 @@ export async function extractMemoryToGraph(
   try {
     extraction = await llm.completeJSON<ExtractionType>(prompt, { temperature: 0.3 });
   } catch (error) {
-    console.error(`[Graph] LLM extraction failed for ${memory.id}:`, error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[Graph] LLM extraction failed for ${memory.id}:`, msg);
+    extractionHealth.lastError = `LLM extraction failed: ${msg}`;
     return empty;
   }
 
@@ -71,6 +126,7 @@ export async function extractMemoryToGraph(
     .filter((r) => r.confidence >= MIN_CONFIDENCE);
 
   if (entities.length === 0 && relationships.length === 0) {
+    extractionHealth.lastError = "All extracted entities/relationships below confidence threshold (0.5)";
     return empty;
   }
 
@@ -99,7 +155,7 @@ export async function extractMemoryToGraph(
   }
 
   // Use a transaction to atomically create new nodes and edges
-  return graphStore.transaction(() => {
+  const result = graphStore.transaction(() => {
     let nodesCreated = 0;
     let edgesCreated = 0;
 
@@ -149,6 +205,18 @@ export async function extractMemoryToGraph(
 
     return { nodesCreated, edgesCreated };
   });
+
+  // Update health stats with results
+  if (result.nodesCreated > 0 || result.edgesCreated > 0) {
+    extractionHealth.lastSuccess = extractionHealth.lastAttempt;
+    extractionHealth.successesTotal++;
+  } else {
+    extractionHealth.lastError = "Transaction produced 0 nodes and 0 edges (all deduplicated)";
+  }
+  extractionHealth.nodesCreatedTotal += result.nodesCreated;
+  extractionHealth.edgesCreatedTotal += result.edgesCreated;
+
+  return result;
 }
 
 /**

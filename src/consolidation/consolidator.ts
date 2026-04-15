@@ -333,7 +333,7 @@ export async function findUnconsolidatedPeriods(
 
   for (const dateStr of unconsolidated) {
     const targetDate = parseTargetDate(granularity, dateStr);
-    if (targetDate && targetDate < previousPeriodStart) {
+    if (targetDate && targetDate <= previousPeriodStart) {
       result.push(dateStr);
     }
   }

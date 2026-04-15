@@ -86,6 +86,21 @@ export interface MemoryUpdateOutput {
 }
 
 /**
+ * Input schema for memory/delete tool.
+ */
+export const MemoryDeleteSchema = z.object({
+  granularity: GranularitySchema,
+  date: z.string().min(1),
+  instanceId: z.string().optional(),
+  slug: z.string().optional(),
+});
+
+export interface MemoryDeleteOutput {
+  success: boolean;
+  message: string;
+}
+
+/**
  * Output type for memory/create tool.
  */
 export interface MemoryCreateOutput {
@@ -572,6 +587,29 @@ export function createMemoryUpdateHandler(store: FileStore) {
 /**
  * Tool definitions for MCP registration.
  */
+/**
+ * Create the memory/delete tool handler.
+ */
+export function createMemoryDeleteHandler(store: FileStore) {
+  return async (input: z.infer<typeof MemoryDeleteSchema>): Promise<MemoryDeleteOutput> => {
+    const { granularity, date, instanceId, slug } = input;
+
+    const deleted = await store.deleteMemory(
+      granularity as Granularity,
+      date,
+      instanceId,
+      slug,
+    );
+
+    return {
+      success: deleted,
+      message: deleted
+        ? `Deleted ${granularity} memory: ${date}`
+        : `Memory not found: ${granularity}/${date}`,
+    };
+  };
+}
+
 export const memoryTools = {
   "memory/create": {
     description:
@@ -597,5 +635,10 @@ export const memoryTools = {
     description:
       "Overwrite a memory entry. Use this to correct inaccuracies in my recorded memories. Unlike memory/create, this replaces content entirely (no append merge). Tracks who made the edit via editedBy.",
     inputSchema: MemoryUpdateSchema,
+  },
+  "memory/delete": {
+    description:
+      "Permanently delete a memory entry. I use this to remove memories that are no longer relevant or were created in error.",
+    inputSchema: MemoryDeleteSchema,
   },
 };

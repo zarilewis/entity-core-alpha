@@ -27,6 +27,7 @@ import {
   createMemoryListHandler,
   createMemoryReadHandler,
   createMemoryUpdateHandler,
+  createMemoryDeleteHandler,
   createSyncPullHandler,
   createSyncPushHandler,
   createSyncStatusHandler,
@@ -400,6 +401,31 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
             console.error(`[Graph] Re-extraction failed for ${result.memoryId}:`, error);
           });
       }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "memory_delete",
+    memoryTools["memory/delete"].description,
+    {
+      granularity: memoryTools["memory/delete"].inputSchema.shape.granularity,
+      date: memoryTools["memory/delete"].inputSchema.shape.date,
+      instanceId: memoryTools["memory/delete"].inputSchema.shape.instanceId,
+      slug: memoryTools["memory/delete"].inputSchema.shape.slug,
+    },
+    async ({ granularity, date, instanceId, slug }) => {
+      await store.initialize();
+      const handler = createMemoryDeleteHandler(store);
+      const result = await handler({ granularity, date, instanceId, slug });
 
       return {
         content: [

@@ -291,6 +291,26 @@ export class FileStore {
   }
 
   /**
+   * Delete a memory file by granularity, date, and optionally instance/slug.
+   * For daily memories with instance-scope, pass sourceInstance to target the correct file.
+   */
+  async deleteMemory(granularity: Granularity, date: string, sourceInstance?: string, slug?: string): Promise<boolean> {
+    const filePath = this.getMemoryPath({ granularity, date, sourceInstance, slug });
+
+    try {
+      await Deno.stat(filePath);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return false;
+      }
+      throw error;
+    }
+
+    await Deno.remove(filePath);
+    return true;
+  }
+
+  /**
    * Get all memory content for RAG indexing.
    */
   async getAllMemoryContent(): Promise<string[]> {

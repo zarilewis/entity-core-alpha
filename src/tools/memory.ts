@@ -393,10 +393,9 @@ async function vectorSearch(
  * Tries to find a sentence containing query terms, falls back to first 200 chars.
  */
 function findBestExcerpt(content: string, query: string): string {
+  const MAX_EXCERPT = 500;
+
   const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-  if (queryWords.length === 0) {
-    return content.length > 200 ? content.slice(0, 200).trim() + "..." : content;
-  }
 
   // Try to find a sentence that contains the most query words
   const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
@@ -417,12 +416,23 @@ function findBestExcerpt(content: string, query: string): string {
   }
 
   if (bestMatchCount > 0 && bestSentence) {
-    return bestSentence.length > 200
-      ? bestSentence.slice(0, 200).trim() + "..."
-      : bestSentence;
+    // Include surrounding context: the sentence before and after the best match
+    const bestIdx = sentences.indexOf(bestSentence);
+    const contextSentences: string[] = [];
+    if (bestIdx > 0) contextSentences.push(sentences[bestIdx - 1].trim());
+    contextSentences.push(bestSentence);
+    if (bestIdx < sentences.length - 1) contextSentences.push(sentences[bestIdx + 1].trim());
+
+    const excerpt = contextSentences.join(". ");
+    return excerpt.length > MAX_EXCERPT
+      ? excerpt.slice(0, MAX_EXCERPT).trim() + "..."
+      : excerpt;
   }
 
-  return content.length > 200 ? content.slice(0, 200).trim() + "..." : content;
+  // No query match — return the beginning of the content
+  return content.length > MAX_EXCERPT
+    ? content.slice(0, MAX_EXCERPT).trim() + "..."
+    : content;
 }
 
 /**
@@ -462,10 +472,7 @@ async function textSearch(
       }
 
       if (score >= minScore) {
-        const excerptStart = lowerContent.indexOf(lowerQuery.split(/\s+/)[0]);
-        const excerpt = excerptStart >= 0
-          ? memory.content.slice(Math.max(0, excerptStart - 50), excerptStart + 200)
-          : memory.content.slice(0, 200);
+        const excerpt = findBestExcerpt(memory.content, query);
 
         const ageDays = Math.max(0, Math.round(
           (Date.now() - new Date(memory.date).getTime()) / (1000 * 60 * 60 * 24)

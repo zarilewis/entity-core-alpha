@@ -41,9 +41,9 @@ daily → weekly → monthly → yearly
 | Granularity | Description | Status |
 |-------------|-------------|--------|
 | **Daily** | Auto-generated conversation summaries | Created during conversations (by embodiments) |
-| **Weekly** | Consolidated from daily | Cron (Sunday 5 AM, with catch-up) + `memory_consolidate` tool |
-| **Monthly** | Consolidated from weekly | Cron (1st of month 5 AM, with catch-up) + `memory_consolidate` tool |
-| **Yearly** | Consolidated from monthly | Cron (January 1st 5 AM, with catch-up) + `memory_consolidate` tool |
+| **Weekly** | Consolidated from daily | Startup catch-up + cron (Sunday 5 AM) + `memory_consolidate` tool |
+| **Monthly** | Consolidated from weekly | Startup catch-up + cron (1st of month 5 AM) + `memory_consolidate` tool |
+| **Yearly** | Consolidated from monthly | Startup catch-up + cron (January 1st 5 AM) + `memory_consolidate` tool |
 | **Significant** | Permanently remembered events | Created manually |
 
 ### Retention Model
@@ -81,10 +81,11 @@ finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15
 ### How It Works
 
 1. The query is embedded locally using the same model as Psycheros (`Xenova/all-MiniLM-L6-v2`)
-2. Vector search finds `memory_ref` nodes in the knowledge graph matching the query
-3. A parallel search finds entity nodes matching the query (for graph boosting)
+2. Entity nodes in the knowledge graph matching the query are found (for graph boosting)
+3. All memory files across all granularities are loaded, embedded, and scored
 4. Each candidate memory is scored using the multi-signal formula above
 5. Results are sorted by final score and filtered by `minScore`
+6. Excerpts are returned: short memories (<2000 chars) in full; longer memories get the most relevant section with surrounding context
 
 ### Fallback
 
@@ -98,10 +99,14 @@ Results from the same embodiment are boosted, making memories contextually relev
 
 | File | Purpose |
 |------|---------|
-| `src/tools/memory.ts` | Memory MCP tools (create, search, list) |
+| `src/tools/memory.ts` | Memory MCP tools (create, read, update, delete, search, list) |
+| `src/consolidation/consolidator.ts` | Consolidation logic (daily→weekly→monthly→yearly), catch-up |
+| `src/consolidation/periods.ts` | ISO week helpers, period calculation, date filtering |
+| `src/consolidation/prompts.ts` | LLM prompt templates for consolidation |
 | `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `src/tools/sync.ts` | Sync MCP tools (pull, push, status) |
 | `src/sync/versioning.ts` | Vector clock implementation |
 | `src/sync/conflict.ts` | Conflict resolution strategies |
 | `src/storage/file-store.ts` | File-based storage for identity and memory files |
+| `src/mod.ts` | Entry point, consolidation cron jobs, startup catch-up |

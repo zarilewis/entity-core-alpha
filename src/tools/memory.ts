@@ -392,47 +392,70 @@ async function vectorSearch(
  * Find the best excerpt from memory content for a given query.
  * Tries to find a sentence containing query terms, falls back to first 200 chars.
  */
+/**
+ * Extract the most relevant excerpt from memory content for RAG retrieval.
+ *
+ * For short memories (<2000 chars), returns the full content — no truncation.
+ * For longer memories, finds the bullet section most relevant to the query
+ * and returns it with surrounding context (up to 2000 chars).
+ *
+ * This mirrors the old Psycheros chunker approach: ~512 tokens (~2000 chars)
+ * per chunk, returned in full without truncation.
+ */
 function findBestExcerpt(content: string, query: string): string {
-  const MAX_EXCERPT = 500;
+  const MAX_EXCERPT = 2000;
 
+  // Short memories: return in full (most daily/weekly memories are under 2KB)
+  if (content.length <= MAX_EXCERPT) {
+    return content;
+  }
+
+  // Longer memories: find the most relevant section
   const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
 
-  // Try to find a sentence that contains the most query words
-  const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
+  // Split on bullet points (the primary content unit in memory files)
+  const bullets = content.split(/(?=^- )/m).filter((s) => s.trim().length > 10);
 
-  let bestSentence = "";
-  let bestMatchCount = 0;
+  if (bullets.length === 0) {
+    // No bullet structure — just return the first 2000 chars
+    return content.slice(0, MAX_EXCERPT);
+  }
 
-  for (const sentence of sentences) {
-    const lower = sentence.toLowerCase();
-    let matchCount = 0;
+  // Score each bullet by query word overlap
+  let bestIdx = 0;
+  let bestScore = 0;
+
+  for (let i = 0; i < bullets.length; i++) {
+    const lower = bullets[i].toLowerCase();
+    let score = 0;
     for (const word of queryWords) {
-      if (lower.includes(word)) matchCount++;
+      if (lower.includes(word)) score++;
     }
-    if (matchCount > bestMatchCount) {
-      bestMatchCount = matchCount;
-      bestSentence = sentence.trim();
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
     }
   }
 
-  if (bestMatchCount > 0 && bestSentence) {
-    // Include surrounding context: the sentence before and after the best match
-    const bestIdx = sentences.indexOf(bestSentence);
-    const contextSentences: string[] = [];
-    if (bestIdx > 0) contextSentences.push(sentences[bestIdx - 1].trim());
-    contextSentences.push(bestSentence);
-    if (bestIdx < sentences.length - 1) contextSentences.push(sentences[bestIdx + 1].trim());
+  // Build excerpt around the best bullet, including neighbors
+  const excerptParts: string[] = [];
 
-    const excerpt = contextSentences.join(". ");
-    return excerpt.length > MAX_EXCERPT
-      ? excerpt.slice(0, MAX_EXCERPT).trim() + "..."
-      : excerpt;
+  // Include the title line (first line starting with #)
+  const titleMatch = content.match(/^#.+/m);
+  if (titleMatch) excerptParts.push(titleMatch[0]);
+
+  // Include bullets before, at, and after the best match
+  const start = Math.max(0, bestIdx - 1);
+  const end = Math.min(bullets.length, bestIdx + 3);
+
+  for (let i = start; i < end; i++) {
+    const part = bullets[i].trim();
+    if (excerptParts.join("").length + part.length <= MAX_EXCERPT) {
+      excerptParts.push(part);
+    }
   }
 
-  // No query match — return the beginning of the content
-  return content.length > MAX_EXCERPT
-    ? content.slice(0, MAX_EXCERPT).trim() + "..."
-    : content;
+  return excerptParts.join("\n");
 }
 
 /**

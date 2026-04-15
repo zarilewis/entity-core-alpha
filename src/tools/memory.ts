@@ -136,6 +136,7 @@ export interface MemoryListOutput {
     granularity: string;
     date: string;
     preview: string;
+    sourceInstance?: string;
   }>;
 }
 
@@ -510,6 +511,7 @@ export function createMemoryListHandler(store: FileStore) {
           granularity: memory.granularity,
           date: memory.date,
           preview: memory.content.slice(0, 100) + (memory.content.length > 100 ? "..." : ""),
+          ...(memory.sourceInstance ? { sourceInstance: memory.sourceInstance } : {}),
         });
       }
     }
@@ -528,7 +530,9 @@ export function createMemoryReadHandler(store: FileStore) {
   return async (input: z.infer<typeof MemoryReadSchema>): Promise<MemoryReadOutput> => {
     const { granularity, date } = input;
 
-    const memory = await store.readMemory(granularity, date);
+    // Use findMemoryByDate to search across instance variants
+    // (e.g. daily memories with instance-scoped filenames like 2026-04-15_psycheros.md)
+    const memory = await store.findMemoryByDate(granularity, date);
 
     if (!memory) {
       return {

@@ -53,62 +53,45 @@ if (import.meta.main) {
   await store.initialize();
   await graphStore.initialize();
 
-  // Weekly: Sunday at 5 AM
-  Deno.cron("memory-weekly-consolidation", "0 5 * * 7", async () => {
-    console.error("[Cron] Running weekly consolidation catch-up...");
-    const periods = await findUnconsolidatedPeriods(store, "weekly");
-    if (periods.length === 0) {
-      console.error("[Cron] No unconsolidated weekly periods found");
-      return;
-    }
+  /**
+   * Run catch-up consolidation for a given granularity.
+   * Finds all unconsolidated periods and consolidates them.
+   */
+  async function catchUpConsolidation(granularity: "weekly" | "monthly" | "yearly") {
+    const periods = await findUnconsolidatedPeriods(store, granularity);
+    if (periods.length === 0) return;
+
+    console.error(`[Consolidation] Catch-up: ${periods.length} unconsolidated ${granularity} period(s) found`);
     for (const dateStr of periods) {
-      console.error(`[Cron] Consolidating weekly: ${dateStr}`);
-      const result = await runConsolidation(store, graphStore, "weekly", dateStr);
+      console.error(`[Consolidation] Processing ${granularity}: ${dateStr}`);
+      const result = await runConsolidation(store, graphStore, granularity, dateStr);
       if (result.success) {
-        console.error(`[Cron] Weekly consolidation complete: ${dateStr}`);
+        console.error(`[Consolidation] Complete: ${granularity}/${dateStr}`);
       } else {
-        console.error(`[Cron] Weekly consolidation failed for ${dateStr}: ${result.error}`);
+        console.error(`[Consolidation] Failed ${granularity}/${dateStr}: ${result.error}`);
       }
     }
-  });
+  }
+
+  // Run startup catch-up for all consolidation levels (fire-and-forget)
+  (async () => {
+    try {
+      await catchUpConsolidation("weekly");
+      await catchUpConsolidation("monthly");
+      await catchUpConsolidation("yearly");
+    } catch (error) {
+      console.error("[Consolidation] Startup catch-up failed:", error instanceof Error ? error.message : String(error));
+    }
+  })();
+
+  // Weekly: Sunday at 5 AM
+  Deno.cron("memory-weekly-consolidation", "0 5 * * 7", () => catchUpConsolidation("weekly"));
 
   // Monthly: 1st of month at 5 AM
-  Deno.cron("memory-monthly-consolidation", "0 5 1 * *", async () => {
-    console.error("[Cron] Running monthly consolidation catch-up...");
-    const periods = await findUnconsolidatedPeriods(store, "monthly");
-    if (periods.length === 0) {
-      console.error("[Cron] No unconsolidated monthly periods found");
-      return;
-    }
-    for (const dateStr of periods) {
-      console.error(`[Cron] Consolidating monthly: ${dateStr}`);
-      const result = await runConsolidation(store, graphStore, "monthly", dateStr);
-      if (result.success) {
-        console.error(`[Cron] Monthly consolidation complete: ${dateStr}`);
-      } else {
-        console.error(`[Cron] Monthly consolidation failed for ${dateStr}: ${result.error}`);
-      }
-    }
-  });
+  Deno.cron("memory-monthly-consolidation", "0 5 1 * *", () => catchUpConsolidation("monthly"));
 
   // Yearly: January 1st at 5 AM
-  Deno.cron("memory-yearly-consolidation", "0 5 1 1 *", async () => {
-    console.error("[Cron] Running yearly consolidation catch-up...");
-    const periods = await findUnconsolidatedPeriods(store, "yearly");
-    if (periods.length === 0) {
-      console.error("[Cron] No unconsolidated yearly periods found");
-      return;
-    }
-    for (const dateStr of periods) {
-      console.error(`[Cron] Consolidating yearly: ${dateStr}`);
-      const result = await runConsolidation(store, graphStore, "yearly", dateStr);
-      if (result.success) {
-        console.error(`[Cron] Yearly consolidation complete: ${dateStr}`);
-      } else {
-        console.error(`[Cron] Yearly consolidation failed for ${dateStr}: ${result.error}`);
-      }
-    }
-  });
+  Deno.cron("memory-yearly-consolidation", "0 5 1 1 *", () => catchUpConsolidation("yearly"));
 
   console.error("[Cron] Consolidation cron jobs registered (weekly/monthly/yearly at 5 AM)");
 }

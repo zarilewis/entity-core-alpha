@@ -25,7 +25,7 @@ import { startServer } from "./server.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
 import { FileStore } from "./storage/mod.ts";
 import { GraphStore } from "./graph/mod.ts";
-import { runConsolidation } from "./consolidation/mod.ts";
+import { runConsolidation, findUnconsolidatedPeriods } from "./consolidation/mod.ts";
 
 // Re-export public API
 export { createServer, startServer } from "./server.ts";
@@ -55,34 +55,58 @@ if (import.meta.main) {
 
   // Weekly: Sunday at 5 AM
   Deno.cron("memory-weekly-consolidation", "0 5 * * 7", async () => {
-    console.error("[Cron] Running weekly consolidation...");
-    const result = await runConsolidation(store, graphStore, "weekly");
-    if (result.success) {
-      console.error(`[Cron] Weekly consolidation complete: ${result.dateStr}`);
-    } else {
-      console.error(`[Cron] Weekly consolidation: ${result.error}`);
+    console.error("[Cron] Running weekly consolidation catch-up...");
+    const periods = await findUnconsolidatedPeriods(store, "weekly");
+    if (periods.length === 0) {
+      console.error("[Cron] No unconsolidated weekly periods found");
+      return;
+    }
+    for (const dateStr of periods) {
+      console.error(`[Cron] Consolidating weekly: ${dateStr}`);
+      const result = await runConsolidation(store, graphStore, "weekly", dateStr);
+      if (result.success) {
+        console.error(`[Cron] Weekly consolidation complete: ${dateStr}`);
+      } else {
+        console.error(`[Cron] Weekly consolidation failed for ${dateStr}: ${result.error}`);
+      }
     }
   });
 
   // Monthly: 1st of month at 5 AM
   Deno.cron("memory-monthly-consolidation", "0 5 1 * *", async () => {
-    console.error("[Cron] Running monthly consolidation...");
-    const result = await runConsolidation(store, graphStore, "monthly");
-    if (result.success) {
-      console.error(`[Cron] Monthly consolidation complete: ${result.dateStr}`);
-    } else {
-      console.error(`[Cron] Monthly consolidation: ${result.error}`);
+    console.error("[Cron] Running monthly consolidation catch-up...");
+    const periods = await findUnconsolidatedPeriods(store, "monthly");
+    if (periods.length === 0) {
+      console.error("[Cron] No unconsolidated monthly periods found");
+      return;
+    }
+    for (const dateStr of periods) {
+      console.error(`[Cron] Consolidating monthly: ${dateStr}`);
+      const result = await runConsolidation(store, graphStore, "monthly", dateStr);
+      if (result.success) {
+        console.error(`[Cron] Monthly consolidation complete: ${dateStr}`);
+      } else {
+        console.error(`[Cron] Monthly consolidation failed for ${dateStr}: ${result.error}`);
+      }
     }
   });
 
   // Yearly: January 1st at 5 AM
   Deno.cron("memory-yearly-consolidation", "0 5 1 1 *", async () => {
-    console.error("[Cron] Running yearly consolidation...");
-    const result = await runConsolidation(store, graphStore, "yearly");
-    if (result.success) {
-      console.error(`[Cron] Yearly consolidation complete: ${result.dateStr}`);
-    } else {
-      console.error(`[Cron] Yearly consolidation: ${result.error}`);
+    console.error("[Cron] Running yearly consolidation catch-up...");
+    const periods = await findUnconsolidatedPeriods(store, "yearly");
+    if (periods.length === 0) {
+      console.error("[Cron] No unconsolidated yearly periods found");
+      return;
+    }
+    for (const dateStr of periods) {
+      console.error(`[Cron] Consolidating yearly: ${dateStr}`);
+      const result = await runConsolidation(store, graphStore, "yearly", dateStr);
+      if (result.success) {
+        console.error(`[Cron] Yearly consolidation complete: ${dateStr}`);
+      } else {
+        console.error(`[Cron] Yearly consolidation failed for ${dateStr}: ${result.error}`);
+      }
     }
   });
 

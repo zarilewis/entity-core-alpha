@@ -21,6 +21,8 @@ export interface LLMConfig {
   temperature?: number;
   /** Maximum tokens in response */
   maxTokens?: number;
+  /** Max retries on transient errors (rate limit, 5xx, network) with exponential backoff (default: 3) */
+  maxRetries?: number;
 }
 
 /**
@@ -56,6 +58,11 @@ export class LLMError extends Error {
     super(message);
     this.name = "LLMError";
   }
+}
+
+/** Promise-based delay for retry backoff. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -143,6 +150,7 @@ export class LLMClient {
 
   /**
    * Make the HTTP request to the API.
+   * Retries on transient errors (rate limit, 5xx, network) with exponential backoff.
    */
   private async makeRequest(
     messages: ChatMessage[],
@@ -165,20 +173,57 @@ export class LLMClient {
       body.max_tokens = maxTokens;
     }
 
-    try {
-      return await fetch(this.config.baseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown network error";
-      throw new LLMError(`Network error: ${message}`, "NETWORK_ERROR");
+    const maxRetries = this.config.maxRetries ?? 3;
+    const baseDelayMs = 1000;
+    const jitterMs = 500;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(this.config.baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown network error";
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * (2 ** attempt) + Math.random() * jitterMs;
+          console.warn(`[LLM] Network error, retry ${attempt + 1}/${maxRetries} after ${Math.round(delay)}ms: ${message}`);
+          await sleep(delay);
+          continue;
+        }
+        throw new LLMError(`Network error: ${message}`, "NETWORK_ERROR");
+      }
+
+      // Retry on rate limit or server errors
+      const status = response.status;
+      if (status === 429 || status >= 500) {
+        if (attempt < maxRetries) {
+          let retryAfterMs = baseDelayMs * (2 ** attempt) + Math.random() * jitterMs;
+          const retryAfter = response.headers.get("retry-after");
+          if (retryAfter) {
+            const parsed = parseInt(retryAfter, 10);
+            if (!isNaN(parsed)) {
+              retryAfterMs = parsed * 1000 + Math.random() * jitterMs;
+            }
+          }
+          console.warn(`[LLM] HTTP ${status}, retry ${attempt + 1}/${maxRetries} after ${Math.round(retryAfterMs)}ms`);
+          await response.body?.cancel();
+          await sleep(retryAfterMs);
+          continue;
+        }
+        return response;
+      }
+
+      return response;
     }
+
+    throw new LLMError("Unexpected retry loop exit", "INTERNAL_ERROR");
   }
 
   /**

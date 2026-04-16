@@ -9,6 +9,11 @@ import { z } from "zod";
 import type { FileStore } from "../storage/mod.ts";
 import type { IdentityFile } from "../types.ts";
 import { createSnapshot } from "../snapshot/mod.ts";
+import {
+  loadIdentityMeta,
+  saveIdentityMeta,
+  getPromptLabel,
+} from "./identity-meta.ts";
 
 /**
  * Schema for identity category.
@@ -40,7 +45,6 @@ export const IdentityAppendSchema = z.object({
   category: IdentityCategorySchema,
   filename: SafeFilenameSchema,
   content: z.string(),
-  reason: z.string().optional(),
   instanceId: z.string().min(1),
 });
 
@@ -51,7 +55,6 @@ export const IdentityPrependSchema = z.object({
   category: IdentityCategorySchema,
   filename: SafeFilenameSchema,
   content: z.string(),
-  reason: z.string().optional(),
   instanceId: z.string().min(1),
 });
 
@@ -63,7 +66,6 @@ export const IdentityUpdateSectionSchema = z.object({
   filename: SafeFilenameSchema,
   section: z.string().min(1),
   content: z.string(),
-  reason: z.string().optional(),
   instanceId: z.string().min(1),
 });
 
@@ -75,13 +77,41 @@ export const IdentityDeleteCustomSchema = z.object({
 });
 
 /**
+ * Input schema for identity/rewrite_section tool.
+ */
+export const IdentityRewriteSectionSchema = z.object({
+  category: IdentityCategorySchema,
+  filename: SafeFilenameSchema,
+  section: z.string().min(1),
+  content: z.string(),
+  instanceId: z.string().min(1),
+});
+
+/**
+ * Input schema for identity/get_meta tool.
+ */
+export const IdentityGetMetaSchema = z.object({
+  category: IdentityCategorySchema.optional(),
+  filename: z.string().optional(),
+});
+
+/**
+ * Input schema for identity/set_meta tool.
+ */
+export const IdentitySetMetaSchema = z.object({
+  category: IdentityCategorySchema,
+  filename: SafeFilenameSchema,
+  promptLabel: z.string().min(1),
+});
+
+/**
  * Output type for identity/get_all tool.
  */
 export interface IdentityGetAllOutput {
-  self: Array<{ filename: string; content: string }>;
-  user: Array<{ filename: string; content: string }>;
-  relationship: Array<{ filename: string; content: string }>;
-  custom: Array<{ filename: string; content: string }>;
+  self: Array<{ filename: string; content: string; promptLabel?: string }>;
+  user: Array<{ filename: string; content: string; promptLabel?: string }>;
+  relationship: Array<{ filename: string; content: string; promptLabel?: string }>;
+  custom: Array<{ filename: string; content: string; promptLabel?: string }>;
 }
 
 /**
@@ -94,80 +124,53 @@ export interface IdentityOperationOutput {
 }
 
 // =============================================================================
-// XML Content Utilities
+// Content Utilities
 // =============================================================================
 
 /**
- * Parse XML-tagged content from a file.
- * Returns the content between <tag>...</tag> or the whole content if no tags found.
+ * Append content to the end of a file's content.
  */
-function parseXmlContent(content: string): {
-  tag: string | null;
-  innerContent: string;
-} {
-  const match = content.match(/<([^>]+)>([\s\S]*)<\/\1>/);
-  if (match) {
-    return { tag: match[1], innerContent: match[2].trim() };
-  }
-  return { tag: null, innerContent: content.trim() };
-}
-
-/**
- * Append content before the closing XML tag.
- */
-function appendToXmlContent(
+function appendContent(
   existingContent: string,
   newContent: string,
-  _reason?: string
 ): string {
-  const { tag, innerContent } = parseXmlContent(existingContent);
-
-  let addition = `\n\n${newContent.trim()}`;
-
-  if (tag) {
-    return `<${tag}>\n${innerContent}${addition}\n</${tag}>\n`;
-  }
+  const addition = `\n\n${newContent.trim()}`;
   return existingContent.trim() + addition + "\n";
 }
 
 /**
- * Prepend content after the opening XML tag.
+ * Prepend content to the beginning of a file's content.
  */
-function prependToXmlContent(
+function prependContent(
   existingContent: string,
   newContent: string,
-  _reason?: string
 ): string {
-  const { tag, innerContent } = parseXmlContent(existingContent);
-
-  let addition = `${newContent.trim()}\n\n`;
-
-  if (tag) {
-    return `<${tag}>\n${addition}${innerContent}\n</${tag}>\n`;
-  }
+  const addition = `${newContent.trim()}\n\n`;
   return addition + existingContent.trim() + "\n";
 }
 
 /**
  * Append content within a specific markdown section.
  * New content is added after any existing content in the section.
+ * If the section doesn't exist, it is created at the end of the file.
  */
 function updateSection(
   existingContent: string,
   sectionName: string,
   newSectionContent: string,
-  _reason?: string
-): { content: string; found: boolean } {
-  const { tag, innerContent } = parseXmlContent(existingContent);
+): { content: string; found: boolean; created: boolean } {
+  const content = existingContent.trim();
 
   const headingPattern = new RegExp(
     `^(#{2,3})\\s*${escapeRegex(sectionName)}\\s*$`,
     "m"
   );
-  const match = innerContent.match(headingPattern);
+  const match = content.match(headingPattern);
 
   if (!match) {
-    return { content: existingContent, found: false };
+    // Section doesn't exist — create it at the end of the file
+    const newSection = `\n\n## ${sectionName}\n${newSectionContent.trim()}`;
+    return { content: (content + newSection).trim() + "\n", found: false, created: true };
   }
 
   const headingLevel = match[1];
@@ -175,9 +178,9 @@ function updateSection(
   const headingEndIndex = startIndex + match[0].length;
 
   // Find the next heading of same or higher level
-  const nextHeadingPattern = new RegExp(`^${headingLevel}\\s+.+$`, "gm");
-  let endIndex = innerContent.length;
-  const remainingContent = innerContent.slice(headingEndIndex);
+  const nextHeadingPattern = new RegExp(`^${headingLevel}\\s+.+$`, "m");
+  let endIndex = content.length;
+  const remainingContent = content.slice(headingEndIndex);
   const nextMatch = remainingContent.match(nextHeadingPattern);
 
   if (nextMatch && nextMatch.index !== undefined) {
@@ -185,17 +188,64 @@ function updateSection(
   }
 
   // Preserve existing content in the section and append new content after it
-  const existingSectionContent = innerContent.slice(headingEndIndex, endIndex).trim();
+  const existingSectionContent = content.slice(headingEndIndex, endIndex).trim();
   const newSection = existingSectionContent
     ? `${match[0]}\n${existingSectionContent}\n\n${newSectionContent.trim()}`
     : `${match[0]}\n${newSectionContent.trim()}`;
-  const newInnerContent =
-    innerContent.slice(0, startIndex) + newSection + innerContent.slice(endIndex);
+  const newContent =
+    content.slice(0, startIndex) + newSection + "\n\n" + content.slice(endIndex);
 
-  if (tag) {
-    return { content: `<${tag}>\n${newInnerContent.trim()}\n</${tag}>\n`, found: true };
+  return { content: newContent.trim() + "\n", found: true, created: false };
+}
+
+/**
+ * Replace content within a specific markdown section.
+ * Everything between the heading and the next same/higher-level heading
+ * is replaced. The heading line itself is preserved.
+ * If the section doesn't exist, it is created at the end of the file.
+ */
+function rewriteSectionContent(
+  existingContent: string,
+  sectionName: string,
+  newSectionContent: string,
+): { content: string; found: boolean; created: boolean } {
+  const content = existingContent.trim();
+
+  const headingPattern = new RegExp(
+    `^(#{2,3})\\s*${escapeRegex(sectionName)}\\s*$`,
+    "m"
+  );
+  const match = content.match(headingPattern);
+
+  if (!match) {
+    // Section doesn't exist — create it at the end of the file
+    const newSection = `\n\n## ${sectionName}\n${newSectionContent.trim()}`;
+    return { content: (content + newSection).trim() + "\n", found: false, created: true };
   }
-  return { content: newInnerContent.trim() + "\n", found: true };
+
+  const headingLevel = match[1];
+  const startIndex = match.index!;
+  const headingEndIndex = startIndex + match[0].length;
+
+  // Find the next heading of same or higher level, or end of content
+  const nextHeadingPattern = new RegExp(`^${headingLevel}\\s+.+$`, "m");
+  let endIndex = content.length;
+  const remainingContent = content.slice(headingEndIndex);
+  const nextMatch = remainingContent.match(nextHeadingPattern);
+
+  if (nextMatch && nextMatch.index !== undefined) {
+    endIndex = headingEndIndex + nextMatch.index;
+  }
+
+  // Replace section content (keep the heading, replace everything after it)
+  const newSection = `${match[0]}\n${newSectionContent.trim()}`;
+  const newContent =
+    content.slice(0, headingEndIndex) +
+    newSection +
+    "\n\n" +
+    content.slice(endIndex);
+
+  return { content: newContent.trim() + "\n", found: true, created: false };
 }
 
 function escapeRegex(str: string): string {
@@ -212,18 +262,19 @@ function escapeRegex(str: string): string {
 export function createIdentityGetAllHandler(store: FileStore) {
   return async (): Promise<IdentityGetAllOutput> => {
     const identity = await store.readAllIdentity();
+    const meta = await loadIdentityMeta(store.dataDirectory);
+
+    const attachLabel = (f: IdentityFile) => ({
+      filename: f.filename,
+      content: f.content,
+      promptLabel: getPromptLabel(meta, f.category, f.filename),
+    });
 
     return {
-      self: identity.self.map((f) => ({ filename: f.filename, content: f.content })),
-      user: identity.user.map((f) => ({ filename: f.filename, content: f.content })),
-      relationship: identity.relationship.map((f) => ({
-        filename: f.filename,
-        content: f.content,
-      })),
-      custom: identity.custom.map((f) => ({
-        filename: f.filename,
-        content: f.content,
-      })),
+      self: identity.self.map(attachLabel),
+      user: identity.user.map(attachLabel),
+      relationship: identity.relationship.map(attachLabel),
+      custom: identity.custom.map(attachLabel),
     };
   };
 }
@@ -282,7 +333,7 @@ export function createIdentityWriteHandler(store: FileStore) {
  */
 export function createIdentityAppendHandler(store: FileStore) {
   return async (input: z.infer<typeof IdentityAppendSchema>): Promise<IdentityOperationOutput> => {
-    const { category, filename, content, reason, instanceId } = input;
+    const { category, filename, content, instanceId } = input;
 
     if (!filename.endsWith(".md")) {
       return { success: false, message: "Filename must end with .md" };
@@ -293,7 +344,7 @@ export function createIdentityAppendHandler(store: FileStore) {
     const existingFile = files.find((f) => f.filename === filename);
 
     const existingContent = existingFile?.content ?? "";
-    const newContent = appendToXmlContent(existingContent, content, reason);
+    const newContent = appendContent(existingContent, content);
 
     const file: IdentityFile = {
       category,
@@ -319,7 +370,7 @@ export function createIdentityAppendHandler(store: FileStore) {
  */
 export function createIdentityPrependHandler(store: FileStore) {
   return async (input: z.infer<typeof IdentityPrependSchema>): Promise<IdentityOperationOutput> => {
-    const { category, filename, content, reason, instanceId } = input;
+    const { category, filename, content, instanceId } = input;
 
     if (!filename.endsWith(".md")) {
       return { success: false, message: "Filename must end with .md" };
@@ -330,7 +381,7 @@ export function createIdentityPrependHandler(store: FileStore) {
     const existingFile = files.find((f) => f.filename === filename);
 
     const existingContent = existingFile?.content ?? "";
-    const newContent = prependToXmlContent(existingContent, content, reason);
+    const newContent = prependContent(existingContent, content);
 
     const file: IdentityFile = {
       category,
@@ -358,7 +409,7 @@ export function createIdentityUpdateSectionHandler(store: FileStore) {
   return async (
     input: z.infer<typeof IdentityUpdateSectionSchema>
   ): Promise<IdentityOperationOutput> => {
-    const { category, filename, section, content, reason, instanceId } = input;
+    const { category, filename, section, content, instanceId } = input;
 
     if (!filename.endsWith(".md")) {
       return { success: false, message: "Filename must end with .md" };
@@ -375,14 +426,7 @@ export function createIdentityUpdateSectionHandler(store: FileStore) {
       };
     }
 
-    const result = updateSection(existingFile.content, section, content, reason);
-
-    if (!result.found) {
-      return {
-        success: false,
-        message: `Section "${section}" not found in ${category}/${filename}`,
-      };
-    }
+    const result = updateSection(existingFile.content, section, content);
 
     const file: IdentityFile = {
       category,
@@ -394,6 +438,14 @@ export function createIdentityUpdateSectionHandler(store: FileStore) {
     };
 
     await store.writeIdentityFile(file);
+
+    if (result.created) {
+      return {
+        success: true,
+        message: `I have created the "${section}" section in my ${category} file: ${filename}`,
+        content: result.content,
+      };
+    }
 
     return {
       success: true,
@@ -436,6 +488,125 @@ export function createIdentityDeleteCustomHandler(store: FileStore) {
   };
 }
 
+/**
+ * Create the identity/rewrite_section tool handler.
+ * Replaces all content within a markdown section while preserving the heading.
+ */
+export function createIdentityRewriteSectionHandler(store: FileStore) {
+  return async (
+    input: z.infer<typeof IdentityRewriteSectionSchema>
+  ): Promise<IdentityOperationOutput> => {
+    const { category, filename, section, content, instanceId } = input;
+
+    if (!filename.endsWith(".md")) {
+      return { success: false, message: "Filename must end with .md" };
+    }
+
+    const files = await store.readIdentityCategory(category);
+    const existingFile = files.find((f) => f.filename === filename);
+
+    if (!existingFile) {
+      return {
+        success: false,
+        message: `File ${category}/${filename} not found`,
+      };
+    }
+
+    // Create pre-rewrite snapshot
+    try {
+      await createSnapshot(
+        store,
+        category,
+        filename,
+        existingFile.content,
+        "pre-replace",
+        instanceId === "psycheros" ? "psycheros" : "entity-core",
+      );
+    } catch (error) {
+      console.error("[Identity] Pre-rewrite snapshot failed:", error);
+    }
+
+    const result = rewriteSectionContent(existingFile.content, section, content);
+
+    const file: IdentityFile = {
+      category,
+      filename,
+      content: result.content,
+      version: existingFile.version + 1,
+      lastModified: new Date().toISOString(),
+      modifiedBy: instanceId,
+    };
+
+    await store.writeIdentityFile(file);
+
+    if (result.created) {
+      return {
+        success: true,
+        message: `I have created the "${section}" section in my ${category} file: ${filename}`,
+        content: result.content,
+      };
+    }
+
+    return {
+      success: true,
+      message: `I have rewritten the "${section}" section in my ${category} file: ${filename}`,
+      content: result.content,
+    };
+  };
+}
+
+/**
+ * Create the identity/get_meta tool handler.
+ * Returns prompt labels for identity files.
+ */
+export function createIdentityGetMetaHandler(store: FileStore) {
+  return async (
+    input: z.infer<typeof IdentityGetMetaSchema>
+  ): Promise<{ success: boolean; meta: Record<string, string> }> => {
+    const meta = await loadIdentityMeta(store.dataDirectory);
+
+    if (input.category) {
+      // Filter to specific category
+      const identity = await store.readIdentityCategory(input.category);
+      const filtered: Record<string, string> = {};
+      for (const file of identity) {
+        const key = `${file.category}/${file.filename}`;
+        filtered[key] = getPromptLabel(meta, file.category, file.filename);
+      }
+      return { success: true, meta: filtered };
+    }
+
+    if (input.filename) {
+      // Return all labels (filename param ignored for get_meta — returns everything)
+      return { success: true, meta };
+    }
+
+    return { success: true, meta };
+  };
+}
+
+/**
+ * Create the identity/set_meta tool handler.
+ * Sets the prompt label for an identity file.
+ */
+export function createIdentitySetMetaHandler(store: FileStore) {
+  return async (
+    input: z.infer<typeof IdentitySetMetaSchema>
+  ): Promise<{ success: boolean; message: string }> => {
+    const { category, filename, promptLabel } = input;
+
+    const meta = await loadIdentityMeta(store.dataDirectory);
+    const key = `${category}/${filename}`;
+    meta[key] = promptLabel;
+    await saveIdentityMeta(store.dataDirectory, meta);
+
+    return {
+      success: true,
+      message: `I have set the prompt label for ${category}/${filename} to "${promptLabel}"`,
+    };
+  };
+}
+
 // Legacy type alias for backward compatibility
 export type IdentityWriteOutput = IdentityOperationOutput;
 
@@ -445,32 +616,47 @@ export type IdentityWriteOutput = IdentityOperationOutput;
 export const identityTools = {
   "identity/get_all": {
     description:
-      "Get all my identity files (self, user, relationship, custom). These define who I am, who I'm talking to, and our relationship.",
+      "Get all my identity files (self, user, relationship, custom). These define who I am, who I'm talking to, and our relationship. Each file includes a promptLabel used for context wrapping.",
     inputSchema: IdentityGetAllSchema,
   },
   "identity/write": {
     description:
-      "Update one of my identity files. Use this when I want to replace an entire file.",
+      "Update one of my identity files by replacing the entire content. Creates an automatic pre-replace snapshot. For section-level changes, prefer identity/update_section or identity/rewrite_section.",
     inputSchema: IdentityWriteSchema,
   },
   "identity/append": {
     description:
-      "Append content to one of my identity files. The content is added at the end, before the closing XML tag.",
+      "Append content to one of my identity files. The content is added at the end. XML wrapper tags are handled automatically by the system — I only need to provide the content to add.",
     inputSchema: IdentityAppendSchema,
   },
   "identity/prepend": {
     description:
-      "Prepend content to one of my identity files. The content is added at the beginning, after the opening XML tag.",
+      "Prepend content to one of my identity files. The content is added at the beginning. XML wrapper tags are handled automatically by the system.",
     inputSchema: IdentityPrependSchema,
   },
   "identity/update_section": {
     description:
-      "Append content to a specific section in one of my identity files. The section is identified by its markdown heading. Existing content in the section is preserved.",
+      "Append content to a specific section in one of my identity files. The section is identified by its ## markdown heading. Existing content in the section is preserved. If the section doesn't exist, it is created automatically at the end of the file.",
     inputSchema: IdentityUpdateSectionSchema,
+  },
+  "identity/rewrite_section": {
+    description:
+      "Replace the entire content of a specific section in one of my identity files. The section is identified by its ## markdown heading. The heading line is preserved; all content within the section is replaced. If the section doesn't exist, it is created automatically at the end of the file.",
+    inputSchema: IdentityRewriteSectionSchema,
   },
   "identity/delete_custom": {
     description:
       "Delete a custom identity file. Only custom files can be deleted; predefined files in other categories cannot.",
     inputSchema: IdentityDeleteCustomSchema,
+  },
+  "identity/get_meta": {
+    description:
+      "Get the prompt labels for my identity files. Prompt labels are the XML tag names used to wrap content in the context.",
+    inputSchema: IdentityGetMetaSchema,
+  },
+  "identity/set_meta": {
+    description:
+      "Set the prompt label for an identity file. The prompt label is used as the XML tag name when wrapping the file's content in the context.",
+    inputSchema: IdentitySetMetaSchema,
   },
 };

@@ -35,7 +35,7 @@ export interface IdentityFile {
   category: "self" | "user" | "relationship" | "custom";
   /** Filename (e.g., "my_identity.md", "user_preferences.md") */
   filename: string;
-  /** Content of the file */
+  /** Content of the file (inner content only, no XML wrapper tags) */
   content: string;
   /** Version number for sync */
   version: number;
@@ -43,6 +43,8 @@ export interface IdentityFile {
   lastModified: string;
   /** Which embodiment last modified this file */
   modifiedBy: string;
+  /** Prompt label used as XML tag name when wrapping content for context */
+  promptLabel?: string;
 }
 
 /**

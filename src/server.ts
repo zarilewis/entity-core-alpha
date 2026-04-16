@@ -21,7 +21,10 @@ import {
   createIdentityAppendHandler,
   createIdentityPrependHandler,
   createIdentityUpdateSectionHandler,
+  createIdentityRewriteSectionHandler,
   createIdentityDeleteCustomHandler,
+  createIdentityGetMetaHandler,
+  createIdentitySetMetaHandler,
   createMemoryCreateHandler,
   createMemorySearchHandler,
   createMemoryListHandler,
@@ -127,13 +130,12 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       category: identityTools["identity/append"].inputSchema.shape.category,
       filename: identityTools["identity/append"].inputSchema.shape.filename,
       content: identityTools["identity/append"].inputSchema.shape.content,
-      reason: identityTools["identity/append"].inputSchema.shape.reason,
       instanceId: identityTools["identity/append"].inputSchema.shape.instanceId,
     },
-    async ({ category, filename, content, reason, instanceId }) => {
+    async ({ category, filename, content, instanceId }) => {
       await store.initialize();
       const handler = createIdentityAppendHandler(store);
-      const result = await handler({ category, filename, content, reason, instanceId });
+      const result = await handler({ category, filename, content, instanceId });
       return {
         content: [
           {
@@ -152,13 +154,12 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       category: identityTools["identity/prepend"].inputSchema.shape.category,
       filename: identityTools["identity/prepend"].inputSchema.shape.filename,
       content: identityTools["identity/prepend"].inputSchema.shape.content,
-      reason: identityTools["identity/prepend"].inputSchema.shape.reason,
       instanceId: identityTools["identity/prepend"].inputSchema.shape.instanceId,
     },
-    async ({ category, filename, content, reason, instanceId }) => {
+    async ({ category, filename, content, instanceId }) => {
       await store.initialize();
       const handler = createIdentityPrependHandler(store);
-      const result = await handler({ category, filename, content, reason, instanceId });
+      const result = await handler({ category, filename, content, instanceId });
       return {
         content: [
           {
@@ -178,13 +179,12 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       filename: identityTools["identity/update_section"].inputSchema.shape.filename,
       section: identityTools["identity/update_section"].inputSchema.shape.section,
       content: identityTools["identity/update_section"].inputSchema.shape.content,
-      reason: identityTools["identity/update_section"].inputSchema.shape.reason,
       instanceId: identityTools["identity/update_section"].inputSchema.shape.instanceId,
     },
-    async ({ category, filename, section, content, reason, instanceId }) => {
+    async ({ category, filename, section, content, instanceId }) => {
       await store.initialize();
       const handler = createIdentityUpdateSectionHandler(store);
-      const result = await handler({ category, filename, section, content, reason, instanceId });
+      const result = await handler({ category, filename, section, content, instanceId });
       return {
         content: [
           {
@@ -206,6 +206,76 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await store.initialize();
       const handler = createIdentityDeleteCustomHandler(store);
       const result = await handler({ filename });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_rewrite_section",
+    identityTools["identity/rewrite_section"].description,
+    {
+      category: identityTools["identity/rewrite_section"].inputSchema.shape.category,
+      filename: identityTools["identity/rewrite_section"].inputSchema.shape.filename,
+      section: identityTools["identity/rewrite_section"].inputSchema.shape.section,
+      content: identityTools["identity/rewrite_section"].inputSchema.shape.content,
+      instanceId: identityTools["identity/rewrite_section"].inputSchema.shape.instanceId,
+    },
+    async ({ category, filename, section, content, instanceId }) => {
+      await store.initialize();
+      const handler = createIdentityRewriteSectionHandler(store);
+      const result = await handler({ category, filename, section, content, instanceId });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_get_meta",
+    identityTools["identity/get_meta"].description,
+    {
+      category: identityTools["identity/get_meta"].inputSchema.shape.category,
+      filename: identityTools["identity/get_meta"].inputSchema.shape.filename,
+    },
+    async ({ category, filename }) => {
+      await store.initialize();
+      const handler = createIdentityGetMetaHandler(store);
+      const result = await handler({ category, filename });
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "identity_set_meta",
+    identityTools["identity/set_meta"].description,
+    {
+      category: identityTools["identity/set_meta"].inputSchema.shape.category,
+      filename: identityTools["identity/set_meta"].inputSchema.shape.filename,
+      promptLabel: identityTools["identity/set_meta"].inputSchema.shape.promptLabel,
+    },
+    async ({ category, filename, promptLabel }) => {
+      await store.initialize();
+      const handler = createIdentitySetMetaHandler(store);
+      const result = await handler({ category, filename, promptLabel });
       return {
         content: [
           {

@@ -8,6 +8,7 @@
 import { join } from "@std/path";
 import { ensureDir } from "@std/fs";
 import type { IdentityFile, MemoryEntry, IdentityContent, Granularity } from "../types.ts";
+import { loadIdentityMeta, getPromptLabel } from "../tools/identity-meta.ts";
 
 /**
  * File store for my identity and memories.
@@ -57,6 +58,9 @@ export class FileStore {
     const dir = join(this.dataDir, category);
     const files: IdentityFile[] = [];
 
+    // Load prompt labels for this category
+    const meta = await loadIdentityMeta(this.dataDir);
+
     try {
       for await (const entry of Deno.readDir(dir)) {
         if (entry.isFile && entry.name.endsWith(".md")) {
@@ -71,6 +75,7 @@ export class FileStore {
             version: 1, // TODO: Track actual versions
             lastModified: stat.mtime?.toISOString() ?? new Date().toISOString(),
             modifiedBy: "unknown", // TODO: Track modifier
+            promptLabel: getPromptLabel(meta, category, entry.name),
           });
         }
       }

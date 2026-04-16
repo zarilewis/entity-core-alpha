@@ -6,12 +6,24 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 
 | Tool | Description |
 |------|-------------|
-| `identity/get_all` | Get all my identity files (self, user, relationship, custom) |
+| `identity/get_all` | Get all my identity files (self, user, relationship, custom). Each file includes a `promptLabel` used for context wrapping. |
 | `identity/write` | Replace one of my identity files entirely (creates automatic pre-replace snapshot if file exists) |
-| `identity/append` | Append content to an identity file (before closing XML tag) |
-| `identity/prepend` | Prepend content to an identity file (after opening XML tag) |
-| `identity/update_section` | Append content to a specific markdown section within a file (preserves existing content) |
+| `identity/append` | Append content to the end of an identity file |
+| `identity/prepend` | Prepend content to the beginning of an identity file |
+| `identity/update_section` | Append content to a specific markdown section (identified by `## heading`). Preserves existing section content. Auto-creates the section at end of file if the heading doesn't exist. |
+| `identity/rewrite_section` | Replace the entire content of a markdown section (heading preserved). Creates automatic pre-rewrite snapshot. Auto-creates the section at end of file if the heading doesn't exist. |
 | `identity/delete_custom` | Delete a custom identity file (custom category only) |
+| `identity/get_meta` | Get prompt labels for identity files. Optionally filter by category. Returns a `category/filename` → `promptLabel` map. |
+| `identity/set_meta` | Set the prompt label (XML tag name) for an identity file. Used to customize context wrapping. |
+
+### Section Tool Behavior
+
+`identity/update_section` and `identity/rewrite_section` both operate on `##` or `###` markdown headings:
+
+- **Heading found**: Content is placed within the existing section (between the heading and the next same/higher-level heading)
+- **Heading not found**: The section is auto-created at the end of the file as `## heading\ncontent`
+
+`identity/rewrite_section` creates a snapshot before modifying (like `identity/write`), while `identity/update_section` does not.
 
 ### Identity File Categories
 

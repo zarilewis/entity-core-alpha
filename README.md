@@ -106,7 +106,7 @@ entity-core/
 | `ENTITY_CORE_LLM_BASE_URL` | — | LLM API endpoint. Falls back to `ZAI_BASE_URL`. **Required** for LLM features. |
 | `ENTITY_CORE_LLM_MODEL` | — | Model for extraction tasks. Falls back to `ZAI_MODEL`. **Required** for LLM features. |
 | `ENTITY_CORE_LLM_TEMPERATURE` | `0.3` | Temperature for extraction tasks |
-| `ENTITY_CORE_LLM_MAX_TOKENS` | `4000` | Max tokens for extraction responses |
+| `ENTITY_CORE_LLM_MAX_TOKENS` | `8000` | Max tokens for extraction responses |
 
 ## Connecting from Psycheros
 

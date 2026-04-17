@@ -140,11 +140,27 @@ export class LLMClient {
 
     try {
       return JSON.parse(jsonStr) as T;
-    } catch (e) {
-      throw new LLMError(
-        `Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)}`,
-        "PARSE_ERROR",
-      );
+    } catch (firstError) {
+      // Attempt to repair truncated JSON (common when response hits token limit)
+      let repaired = jsonStr;
+
+      // Strategy 1: Strip partial trailing content (incomplete string, trailing comma before EOF)
+      repaired = repaired.replace(/,\s*$/, "");
+      repaired = repaired.replace(/"[^"]*$/, "");
+
+      // Strategy 2: Close unclosed brackets/braces
+      const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
+      const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+      repaired += "]".repeat(Math.max(0, openBrackets)) + "}".repeat(Math.max(0, openBraces));
+
+      try {
+        return JSON.parse(repaired) as T;
+      } catch {
+        throw new LLMError(
+          `Failed to parse JSON response: ${firstError instanceof Error ? firstError.message : String(firstError)}`,
+          "PARSE_ERROR",
+        );
+      }
     }
   }
 
@@ -257,7 +273,7 @@ export class LLMClient {
  *
  * Optional env vars:
  * - ENTITY_CORE_LLM_TEMPERATURE: Temperature for sampling (default: 0.3 for extraction)
- * - ENTITY_CORE_LLM_MAX_TOKENS: Max tokens in response (default: 4000)
+ * - ENTITY_CORE_LLM_MAX_TOKENS: Max tokens in response (default: 8000)
  *
  * Falls back to Psycheros env vars (ZAI_*) if entity-core specific vars not set.
  */
@@ -297,7 +313,7 @@ export function createLLMClient(): LLMClient | null {
   const temperature = temperatureStr ? parseFloat(temperatureStr) : 0.3; // Lower temp for extraction
 
   const maxTokensStr = Deno.env.get("ENTITY_CORE_LLM_MAX_TOKENS");
-  const maxTokens = maxTokensStr ? parseInt(maxTokensStr, 10) : 4000;
+  const maxTokens = maxTokensStr ? parseInt(maxTokensStr, 10) : 8000;
 
   const config: LLMConfig = {
     apiKey,

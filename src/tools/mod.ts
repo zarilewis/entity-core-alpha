@@ -129,3 +129,15 @@ export {
   type GraphStatsOutput,
   type GraphWriteTransactionOutput,
 } from "./graph.ts";
+
+export {
+  EntityExportSchema,
+  createEntityExportHandler,
+  type EntityExportOutput,
+} from "./export.ts";
+
+export {
+  EntityImportSchema,
+  createEntityImportHandler,
+  type EntityImportOutput,
+} from "./import.ts";

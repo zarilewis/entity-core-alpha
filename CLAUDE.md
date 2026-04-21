@@ -38,6 +38,8 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/tools/sync.ts` | Sync tools |
 | `src/tools/snapshot.ts` | Snapshot tools |
 | `src/tools/graph.ts` | Knowledge graph tools (15 tools) |
+| `src/tools/export.ts` | Entity export tool — zips identity, memories, knowledge graph as base64 |
+| `src/tools/import.ts` | Entity import tool — restores from a base64 zip (full overwrite with pre-import snapshot) |
 | `src/consolidation/mod.ts` | Consolidation module barrel export |
 | `src/consolidation/consolidator.ts` | Core consolidation logic (daily→weekly→monthly→yearly) |
 | `src/consolidation/prompts.ts` | LLM prompt templates for consolidation |
@@ -70,7 +72,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 
 | Document | Purpose |
 |----------|---------|
-| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (39 tools across 6 domains) |
+| [docs/mcp-tools.md](docs/mcp-tools.md) | Complete MCP tool reference (41 tools across 7 domains) |
 | [docs/entity-philosophy.md](docs/entity-philosophy.md) | First-person convention rationale, ownership, design philosophy |
 | [docs/sync-and-memory.md](docs/sync-and-memory.md) | Sync protocol, conflict resolution, memory hierarchy, retrieval ranking |
 | [docs/knowledge-graph.md](docs/knowledge-graph.md) | Node/edge types, confidence scoring, temporal tracking, hybrid RAG |

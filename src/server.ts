@@ -56,6 +56,9 @@ import {
   createMemoryConsolidateHandler,
   MemoryConsolidateSchema,
   memoryConsolidateDescription,
+  createEntityExportHandler,
+  createEntityImportHandler,
+  EntityImportSchema,
 } from "./tools/mod.ts";
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
@@ -980,6 +983,40 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
       await graphStore.initialize();
       const handler = createGraphWriteTransactionHandler(graphStore);
       const result = await handler({ nodes, edges, instanceId });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // Register export/import tools
+  server.tool(
+    "entity_export",
+    "Export all my identity, memories, and knowledge graph as a zip file. I use this to create a complete backup of my core data.",
+    {},
+    async () => {
+      await store.initialize();
+      await graphStore.initialize();
+      const handler = createEntityExportHandler(store, graphStore);
+      const result = await handler({});
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "entity_import",
+    "Import identity, memories, and knowledge graph from a previously exported zip file. Performs a full overwrite. I use this to restore from a backup.",
+    {
+      data: EntityImportSchema.shape.data,
+      mode: EntityImportSchema.shape.mode,
+    },
+    async ({ data, mode }) => {
+      await store.initialize();
+      await graphStore.initialize();
+      const handler = createEntityImportHandler(store, graphStore);
+      const result = await handler({ data, mode });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };

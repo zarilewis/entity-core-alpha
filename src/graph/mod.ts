@@ -48,6 +48,9 @@ export {
   MIN_CONFIDENCE,
 } from "./extraction-prompt.ts";
 
+// Graph consolidation
+export { consolidateGraph, type ConsolidationResult } from "./consolidator.ts";
+
 // Memory Integration
 export {
   MemoryIntegration,

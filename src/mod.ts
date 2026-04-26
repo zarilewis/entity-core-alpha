@@ -26,6 +26,7 @@ import { DEFAULT_SERVER_CONFIG } from "./types.ts";
 import { FileStore } from "./storage/mod.ts";
 import { GraphStore } from "./graph/mod.ts";
 import { runConsolidation, findUnconsolidatedPeriods } from "./consolidation/mod.ts";
+import { consolidateGraph } from "./graph/mod.ts";
 
 // Re-export public API
 export { createServer, startServer } from "./server.ts";
@@ -81,6 +82,13 @@ if (import.meta.main) {
       await catchUpConsolidation("yearly");
     } catch (error) {
       console.error("[Consolidation] Startup catch-up failed:", error instanceof Error ? error.message : String(error));
+    }
+
+    // Consolidate knowledge graph after memory consolidation completes
+    try {
+      consolidateGraph(dataDir);
+    } catch (error) {
+      console.error("[Graph] Consolidation failed:", error instanceof Error ? error.message : String(error));
     }
   })();
 

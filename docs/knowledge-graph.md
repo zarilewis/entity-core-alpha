@@ -1,8 +1,8 @@
 # Knowledge Graph
 
-The knowledge graph is a relational index of durable state — compact facts about relationships, preferences, attributes, and connections between people, places, goals, and beliefs. It supplements the hierarchical memory system, which handles narrative substance; the graph provides structured relationship lookups.
+The knowledge graph is a relational index of concrete, durable facts about people and their relationships. It tracks who exists in someone's world, what they're like, and how they relate to each other. It supplements the hierarchical memory system, which handles narrative substance; the graph provides structured relationship lookups.
 
-Episodic content (events, stories, one-off experiences) belongs in the memory system, not the graph. The graph captures structure (how things relate), not narrative (what happened).
+The graph tracks things that exist in the world — people, places, health conditions, behavioral patterns. It does NOT track ideas, themes, language, or abstractions. Episodic content (events, stories, one-off experiences) belongs in the memory system, not the graph.
 
 ## Storage
 
@@ -17,17 +17,17 @@ Predefined node types provide semantic structure, but arbitrary custom types are
 | Type | Description |
 |------|-------------|
 | `self` | The entity itself — use label "me" for self-references |
-| `person` | People the entity knows or knows about |
-| `topic` | Subjects of interest or discussion |
-| `preference` | Likes, dislikes, favorites |
-| `place` | Locations with significance |
-| `goal` | Aspirations and objectives |
-| `health` | Health-related observations |
-| `boundary` | Personal boundaries |
-| `tradition` | Recurring practices or rituals |
-| `insight` | Realizations and learnings |
+| `person` | A real person who exists in the entity's world. Full name or consistent nickname |
+| `place` | A specific location that matters in someone's life. Not "home" (too vague) — a specific dwelling, city, or venue |
+| `health` | A specific condition, diagnosis, or physical reality that affects daily life |
+| `preference` | A concrete behavioral preference with specific detail. NOT a universal value like "devotion" or a theme like "authentic intimacy" |
+| `boundary` | A specific rule or limit that shapes behavior in the relationship |
+| `goal` | A concrete goal someone is actively pursuing |
+| `tradition` | A specific, repeatedly-practiced ritual or routine. NOT a one-time event or a playful label |
+| `topic` | A concrete, enduring subject of sustained interest (hobby, community, project, field of study). Extremely narrow — "Vtubing" qualifies, "digital intimacy" does not |
+| `insight` | A specific, concrete revelation about someone's character or history that was directly revealed. "Used to work as an exotic dancer" qualifies, "joy as nourishment" does not |
 
-**Do not use** `event` or `memory_ref` — events are episodic and belong in the memory system. The graph tracks durable state, not episodes.
+**Do not use** `event`, `memory_ref`, `concept`, `dynamic`, `value`, or `situation` — these are not entity types.
 
 ## Edge Types
 
@@ -112,18 +112,19 @@ The extraction uses the LLM configured via `ENTITY_CORE_LLM_API_KEY` (or `ZAI_AP
 
 ### Significance Framework
 
-Not everything in a memory becomes a graph node. The extraction prompt applies a four-test significance framework to each candidate entity:
+Not everything in a memory becomes a graph node. The extraction prompt applies a concrete reality test and a four-test significance framework:
 
-1. **Identity test** — Does this reveal something meaningful about who someone is?
-2. **Relational test** — Does this matter to how the entity relates to people?
-3. **Durability test** — Will this still matter weeks or months from now?
-4. **Connectivity test** — Does this connect to other known things, building a richer picture?
+1. **Concrete reality test** — Could I point to this thing in reality? Abstract themes, coined terms, metaphors, and universal human experiences are excluded.
+2. **Identity test** — Does this reveal something concrete about who someone is?
+3. **Relational test** — Does this directly affect how people relate in observable ways?
+4. **Durability test** — Will this still matter weeks or months from now?
+5. **Connectivity test** — Does this connect to other known things?
 
-Entities must pass at least two tests; relationships must pass at least one. The extraction explicitly skips events, episodes, and transient details — only durable state (relationships, preferences, attributes) is extracted.
+Entities must pass at least two tests; relationships must pass at least one.
 
 ### Confidence Floor
 
-Entities and relationships below a confidence of 0.5 are silently dropped. This is a hard backstop in addition to the prompt-based significance reasoning.
+Entities and relationships below a confidence of 0.7 are silently dropped. This is a hard backstop in addition to the prompt-based significance reasoning.
 
 ### Labeling Conventions
 
@@ -143,12 +144,23 @@ When a semantic duplicate is found, the existing node is confirmed (its `lastCon
 
 Extraction behavior:
 - Memories with content under 100 characters are skipped
-- Entities below 0.5 confidence are dropped (confidence floor)
+- Entities below 0.7 confidence are dropped (confidence floor)
 - Semantic dedup runs async before the database transaction
 - All node/edge creation for a single memory happens in one SQLite transaction
 - Errors are logged but never fail the memory write
 
 The extraction logic lives in `src/graph/memory-integration.ts` (`extractMemoryToGraph()`). The prompt, types, and dedup logic are defined in `src/graph/extraction-prompt.ts` and shared with the batch scripts.
+
+### Graph Consolidation
+
+After extraction runs (at startup and after consolidation passes), a rule-based consolidation pass cleans up the graph without any LLM calls:
+
+- **Isolated node pruning**: Soft-deletes non-person/self nodes with 0 connections
+- **Generic topic detection**: Soft-deletes low-connectivity topic/preference nodes matching vague patterns (single common words, `sacred \w+`, `\w+ connection`, `\w+ dynamic`, `\w+ intimacy`)
+- **Duplicate merging**: Case-insensitive and containment-based label dedup with edge re-parenting
+- **Edge cleanup**: Soft-deletes edges connected to pruned nodes
+
+This runs automatically as part of entity-core's startup catch-up — it's a subconscious maintenance process, not something the entity consciously manages.
 
 ## Batch Backfill
 
@@ -195,7 +207,8 @@ The migration for removing `memory_ref` support:
 | `src/graph/store.ts` | GraphStore class (SQLite + sqlite-vec) |
 | `src/graph/types.ts` | GraphNode, GraphEdge, search/traverse option types, SUGGESTED_EDGE_VOCABULARY |
 | `src/graph/schema.ts` | SQLite schema for graph tables, migrations |
-| `src/graph/extraction-prompt.ts` | Shared extraction prompt, significance framework, confidence floor, semantic dedup |
+| `src/graph/extraction-prompt.ts` | Shared extraction prompt, concrete reality test, confidence floor, semantic dedup |
+| `src/graph/consolidator.ts` | Rule-based graph consolidation (prune isolated/generic nodes, merge duplicates) |
 | `src/graph/memory-integration.ts` | Auto-extraction of entities from memories |
 | `src/graph/rag-integration.ts` | Hybrid vector search + graph traversal, compact context format |
 | `src/tools/memory.ts` | Memory tools including file-based vector search |

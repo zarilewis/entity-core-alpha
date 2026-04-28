@@ -23,6 +23,9 @@ type PipelineFunction = (
 // Singleton pipeline instance
 let extractor: PipelineFunction | null = null;
 
+/** Maximum retries after ONNX runtime failures before giving up. */
+const EMBEDDER_MAX_RETRIES = 1;
+
 /**
  * Local embedder using Hugging Face Transformers.
  * Uses the all-MiniLM-L6-v2 model (384 dimensions, ~80MB download on first use).
@@ -53,6 +56,16 @@ export class LocalEmbedder {
    */
   hasFailed(): boolean {
     return this.initFailed;
+  }
+
+  /**
+   * Reset the embedder state so the next call will re-initialize.
+   */
+  private reset(): void {
+    extractor = null;
+    this.initialized = false;
+    this.initFailed = false;
+    this.initPromise = null;
   }
 
   /**
@@ -119,32 +132,48 @@ export class LocalEmbedder {
 
   /**
    * Generate an embedding for the given text.
+   * On ONNX runtime failure, re-initializes the model and retries once.
    *
    * @param text - The text to embed
    * @returns A 384-dimensional embedding vector, or null if the embedder is not available
    */
   async embed(text: string): Promise<number[] | null> {
-    if (!this.isReady()) {
-      await this.initialize();
+    for (let attempt = 0; attempt <= EMBEDDER_MAX_RETRIES; attempt++) {
+      if (!this.isReady()) {
+        await this.initialize();
+      }
+
+      if (!extractor) {
+        return null;
+      }
+
+      try {
+        // Generate embedding with mean pooling and normalization
+        const result = await extractor(text, {
+          pooling: "mean",
+          normalize: true,
+        });
+
+        // Convert Float32Array to regular array
+        return Array.from(result.data);
+      } catch (error) {
+        const isONNXFailure = error instanceof Error &&
+          (error.message.includes("reading 'constructor'") ||
+           error.message.includes("onnxruntime") ||
+           error.message.includes("Tensor"));
+
+        if (isONNXFailure && attempt < EMBEDDER_MAX_RETRIES) {
+          console.error(`[Embeddings] ONNX runtime error on attempt ${attempt + 1}, re-initializing: ${error.message}`);
+          this.reset();
+          continue;
+        }
+
+        console.error("[Embeddings] Failed to generate embedding:", error);
+        return null;
+      }
     }
 
-    if (!extractor) {
-      return null;
-    }
-
-    try {
-      // Generate embedding with mean pooling and normalization
-      const result = await extractor(text, {
-        pooling: "mean",
-        normalize: true,
-      });
-
-      // Convert Float32Array to regular array
-      return Array.from(result.data);
-    } catch (error) {
-      console.error("[Embeddings] Failed to generate embedding:", error);
-      return null;
-    }
+    return null;
   }
 }
 

@@ -11,6 +11,44 @@ import type { IdentityFile, MemoryEntry, IdentityContent, Granularity } from "..
 import { loadIdentityMeta, getPromptLabel } from "../tools/identity-meta.ts";
 
 /**
+ * Write a file atomically: write to a temp file in the same directory, then rename.
+ * This prevents corruption if the process crashes mid-write (e.g. power loss).
+ */
+async function atomicWriteTextFile(filePath: string, content: string): Promise<void> {
+  const tmpPath = `${filePath}.tmp.${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    await Deno.writeTextFile(tmpPath, content);
+    await Deno.rename(tmpPath, filePath);
+  } catch (error) {
+    // Clean up temp file on failure
+    try { await Deno.remove(tmpPath); } catch { /* ignore */ }
+    throw error;
+  }
+}
+
+/**
+ * Write a file atomically and verify the result by comparing file size.
+ * Logs a warning if the written size doesn't match the expected content length.
+ */
+async function atomicWriteAndVerify(filePath: string, content: string, label: string): Promise<void> {
+  await atomicWriteTextFile(filePath, content);
+
+  // Verify the file was written correctly
+  try {
+    const stat = await Deno.stat(filePath);
+    const encoder = new TextEncoder();
+    const expectedBytes = encoder.encode(content).byteLength;
+    if (stat.size !== expectedBytes) {
+      console.error(
+        `[Storage] WARNING: ${label} written size mismatch — expected ${expectedBytes} bytes, got ${stat.size} bytes at ${filePath}`,
+      );
+    }
+  } catch (error) {
+    console.error(`[Storage] WARNING: Could not verify ${label} write at ${filePath}:`, error);
+  }
+}
+
+/**
  * File store for my identity and memories.
  */
 export class FileStore {
@@ -118,13 +156,13 @@ export class FileStore {
   }
 
   /**
-   * Write an identity file.
+   * Write an identity file atomically.
    */
   async writeIdentityFile(file: IdentityFile): Promise<void> {
     const dir = join(this.dataDir, file.category);
     await ensureDir(dir);
     const filePath = join(dir, file.filename);
-    await Deno.writeTextFile(filePath, file.content);
+    await atomicWriteAndVerify(filePath, file.content, `identity/${file.category}/${file.filename}`);
   }
 
   /**
@@ -262,14 +300,15 @@ export class FileStore {
   }
 
   /**
-   * Write a memory entry.
+   * Write a memory entry atomically.
    * Uses sourceInstance from the entry for daily filenames.
+   * Writes to a temp file then renames to prevent corruption on crash.
    */
   async writeMemory(entry: MemoryEntry): Promise<void> {
     const dir = join(this.dataDir, "memories", entry.granularity);
     await ensureDir(dir);
     const filePath = this.getMemoryPath(entry);
-    await Deno.writeTextFile(filePath, entry.content);
+    await atomicWriteAndVerify(filePath, entry.content, `memory/${entry.granularity}`);
   }
 
   /**

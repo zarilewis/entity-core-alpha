@@ -31,7 +31,7 @@ const EMBEDDER_MAX_RETRIES = 1;
  * Uses the all-MiniLM-L6-v2 model (384 dimensions, ~80MB download on first use).
  */
 export class LocalEmbedder {
-  private readonly modelId = "Xenova/all-MiniLM-L6-v2";
+  private readonly modelId = "sentence-transformers/all-MiniLM-L6-v2";
   private readonly dimension = 384;
   private initialized = false;
   private initPromise: Promise<void> | null = null;

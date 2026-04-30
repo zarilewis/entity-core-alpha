@@ -80,7 +80,7 @@ finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15
 
 ### How It Works
 
-1. The query is embedded locally using the same model as Psycheros (`Xenova/all-MiniLM-L6-v2`)
+1. The query is embedded locally using the same model as Psycheros (`all-MiniLM-L6-v2`)
 2. Entity nodes in the knowledge graph matching the query are found (for graph boosting)
 3. All memory files across all granularities are loaded, embedded, and scored
 4. Each candidate memory is scored using the multi-signal formula above

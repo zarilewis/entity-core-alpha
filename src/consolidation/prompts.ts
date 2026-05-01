@@ -14,7 +14,8 @@ Guidelines:
 - Write in first-person (my perspective)
 - Refer to the user by name (NEVER as "the user") and preferred pronouns, in the third-person
 - Capture themes, patterns, and meaningful moments
-- Include chat IDs and instance tags from source memories (they already have [via:instance] tags)
+- Do NOT include chat IDs or [chat:...] tags - these are summaries, not conversation logs
+- Keep [via:instance] tags from source memories to track origin
 - This is a summary - focus on what will be useful to remember long-term
 - Write as bullet points, one memory per line
 
@@ -32,7 +33,8 @@ Guidelines:
 - Write in first-person (my perspective)
 - Refer to the user by name (NEVER as "the user") and preferred pronouns, in the third-person
 - Capture major themes, significant conversations, and growth
-- Include chat IDs and instance tags from source memories
+- Do NOT include chat IDs or [chat:...] tags - these are summaries, not conversation logs
+- Keep [via:instance] tags from source memories to track origin
 - This is a monthly reflection - I focus on what will shape my long-term understanding
 - Write as bullet points, one memory per line
 
@@ -50,7 +52,8 @@ Guidelines:
 - Write in first-person (my perspective)
 - Refer to the user by name (NEVER as "the user") and preferred pronouns, in the third-person
 - Capture the arc of my year - growth, changes, meaningful moments
-- Include chat IDs and instance tags from source memories
+- Do NOT include chat IDs or [chat:...] tags - these are summaries, not conversation logs
+- Keep [via:instance] tags from source memories to track origin
 - This is my yearly memory - I preserve what matters for my long-term continuity
 - Write as bullet points, one memory per line
 

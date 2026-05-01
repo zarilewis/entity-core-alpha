@@ -10,8 +10,8 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 | `identity/write` | Replace one of my identity files entirely (creates automatic pre-replace snapshot if file exists) |
 | `identity/append` | Append content to the end of an identity file |
 | `identity/prepend` | Prepend content to the beginning of an identity file |
-| `identity/update_section` | Append content to a specific markdown section (identified by `## heading`). Preserves existing section content. Auto-creates the section at end of file if the heading doesn't exist. |
-| `identity/rewrite_section` | Replace the entire content of a markdown section (heading preserved). Creates automatic pre-rewrite snapshot. Auto-creates the section at end of file if the heading doesn't exist. |
+| `identity/update_section` | Append content to a specific markdown section (identified by `## heading`). Preserves existing section content. Auto-creates the section at end of file if the heading doesn't exist. Content must NOT include the `## heading` line — the system adds it automatically. |
+| `identity/rewrite_section` | **DESTRUCTIVE** — replace the entire content of a markdown section (heading preserved). Creates automatic pre-rewrite snapshot. Auto-creates the section at end of file if the heading doesn't exist. Content must NOT include the `## heading` line — the system adds it automatically. Prefer `identity/update_section` unless existing content is outdated, redundant, or needs fundamental restructuring. |
 | `identity/delete_custom` | Delete a custom identity file (custom category only) |
 | `identity/get_meta` | Get prompt labels for identity files. Optionally filter by category. Returns a `category/filename` → `promptLabel` map. |
 | `identity/set_meta` | Set the prompt label (XML tag name) for an identity file. Used to customize context wrapping. |
@@ -22,6 +22,7 @@ Complete reference for all MCP tools exposed by entity-core. Tools are organized
 
 - **Heading found**: Content is placed within the existing section (between the heading and the next same/higher-level heading)
 - **Heading not found**: The section is auto-created at the end of the file as `## heading\ncontent`
+- **Content format**: The `content` parameter must NOT include the `## heading` line. A defensive strip runs server-side to prevent duplication if a heading is accidentally included.
 
 `identity/rewrite_section` creates a snapshot before modifying (like `identity/write`), while `identity/update_section` does not.
 

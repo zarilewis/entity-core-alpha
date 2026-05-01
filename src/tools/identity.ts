@@ -160,6 +160,7 @@ function updateSection(
   newSectionContent: string,
 ): { content: string; found: boolean; created: boolean } {
   const content = existingContent.trim();
+  const safeContent = stripLeadingHeading(newSectionContent, sectionName);
 
   const headingPattern = new RegExp(
     `^(#{2,3})\\s*${escapeRegex(sectionName)}\\s*$`,
@@ -169,7 +170,7 @@ function updateSection(
 
   if (!match) {
     // Section doesn't exist — create it at the end of the file
-    const newSection = `\n\n## ${sectionName}\n${newSectionContent.trim()}`;
+    const newSection = `\n\n## ${sectionName}\n${safeContent}`;
     return { content: (content + newSection).trim() + "\n", found: false, created: true };
   }
 
@@ -190,8 +191,8 @@ function updateSection(
   // Preserve existing content in the section and append new content after it
   const existingSectionContent = content.slice(headingEndIndex, endIndex).trim();
   const newSection = existingSectionContent
-    ? `${match[0]}\n${existingSectionContent}\n\n${newSectionContent.trim()}`
-    : `${match[0]}\n${newSectionContent.trim()}`;
+    ? `${match[0]}\n${existingSectionContent}\n\n${safeContent}`
+    : `${match[0]}\n${safeContent}`;
   const newContent =
     content.slice(0, startIndex) + newSection + "\n\n" + content.slice(endIndex);
 
@@ -210,6 +211,7 @@ function rewriteSectionContent(
   newSectionContent: string,
 ): { content: string; found: boolean; created: boolean } {
   const content = existingContent.trim();
+  const safeContent = stripLeadingHeading(newSectionContent, sectionName);
 
   const headingPattern = new RegExp(
     `^(#{2,3})\\s*${escapeRegex(sectionName)}\\s*$`,
@@ -219,7 +221,7 @@ function rewriteSectionContent(
 
   if (!match) {
     // Section doesn't exist — create it at the end of the file
-    const newSection = `\n\n## ${sectionName}\n${newSectionContent.trim()}`;
+    const newSection = `\n\n## ${sectionName}\n${safeContent}`;
     return { content: (content + newSection).trim() + "\n", found: false, created: true };
   }
 
@@ -238,7 +240,7 @@ function rewriteSectionContent(
   }
 
   // Replace section content (keep the heading, replace everything after it)
-  const newSection = `${match[0]}\n${newSectionContent.trim()}`;
+  const newSection = `${match[0]}\n${safeContent}`;
   const newContent =
     content.slice(0, headingEndIndex) +
     newSection +
@@ -250,6 +252,17 @@ function rewriteSectionContent(
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Strip a leading ## or ### heading line from content that matches
+ * the given section name. Prevents duplication when the caller
+ * accidentally includes the heading in the content parameter.
+ */
+function stripLeadingHeading(content: string, sectionName: string): string {
+  const trimmed = content.trim();
+  const pattern = new RegExp(`^#{2,3}\\s*${escapeRegex(sectionName)}\\s*\n?`, "");
+  return trimmed.replace(pattern, "").trim();
 }
 
 // =============================================================================
@@ -636,12 +649,12 @@ export const identityTools = {
   },
   "identity/update_section": {
     description:
-      "Append content to a specific section in one of my identity files. The section is identified by its ## markdown heading. Existing content in the section is preserved. If the section doesn't exist, it is created automatically at the end of the file.",
+      "Append content to a specific section in one of my identity files. The section is identified by its ## markdown heading. Existing content in the section is preserved. If the section doesn't exist, it is created automatically at the end of the file. The content parameter must NOT include the ## heading line — the system adds it automatically.",
     inputSchema: IdentityUpdateSectionSchema,
   },
   "identity/rewrite_section": {
     description:
-      "Replace the entire content of a specific section in one of my identity files. The section is identified by its ## markdown heading. The heading line is preserved; all content within the section is replaced. If the section doesn't exist, it is created automatically at the end of the file.",
+      "DESTRUCTIVE: Replace ALL content within a specific section of one of my identity files. The section is identified by its ## markdown heading. The heading line is preserved but everything under it is permanently replaced. A pre-replace snapshot is created automatically, but this operation should still be used sparingly. The content parameter must NOT include the ## heading line — the system adds it automatically. Prefer identity/update_section unless the existing content is outdated, redundant, or needs to be fundamentally restructured.",
     inputSchema: IdentityRewriteSectionSchema,
   },
   "identity/delete_custom": {

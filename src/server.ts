@@ -63,6 +63,7 @@ import {
 import type { ServerConfig } from "./types.ts";
 import { DEFAULT_SERVER_CONFIG } from "./types.ts";
 import { cleanupOldSnapshots } from "./snapshot/mod.ts";
+import { EmbeddingCache } from "./embeddings/mod.ts";
 
 /**
  * Create and configure the MCP server.
@@ -75,6 +76,9 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
 
   // Initialize graph store
   const graphStore = new GraphStore(fullConfig.dataDir);
+
+  // Initialize embedding cache (shares graph.db for sqlite-vec)
+  const embeddingCache = new EmbeddingCache(fullConfig.dataDir);
 
   // Create MCP server
   const server = new McpServer({
@@ -305,7 +309,8 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     },
     async ({ granularity, date, content, chatIds, instanceId, participatingInstances, slug }) => {
       await store.initialize();
-      const handler = createMemoryCreateHandler(store);
+      await embeddingCache.initialize();
+      const handler = createMemoryCreateHandler(store, embeddingCache);
       const result = await handler({
         granularity,
         date,
@@ -370,7 +375,8 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     async ({ query, instanceId, queryEmbedding, minScore, maxResults }) => {
       await store.initialize();
       await graphStore.initialize();
-      const handler = createMemorySearchHandler(store, graphStore, {
+      await embeddingCache.initialize();
+      const handler = createMemorySearchHandler(store, graphStore, embeddingCache, {
         instanceBoost: fullConfig.instanceBoost,
         minScore: fullConfig.ragMinScore,
         maxResults: fullConfig.ragMaxChunks,
@@ -442,7 +448,8 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     },
     async ({ granularity, date, content, editedBy }) => {
       await store.initialize();
-      const handler = createMemoryUpdateHandler(store);
+      await embeddingCache.initialize();
+      const handler = createMemoryUpdateHandler(store, embeddingCache);
       const result = await handler({ granularity, date, content, editedBy });
 
       // After memory is updated, re-extract to graph (fire-and-forget)
@@ -497,7 +504,8 @@ export function createServer(config: Partial<ServerConfig> = {}): McpServer {
     },
     async ({ granularity, date, instanceId, slug }) => {
       await store.initialize();
-      const handler = createMemoryDeleteHandler(store);
+      await embeddingCache.initialize();
+      const handler = createMemoryDeleteHandler(store, embeddingCache);
       const result = await handler({ granularity, date, instanceId, slug });
 
       return {

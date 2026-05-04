@@ -269,6 +269,50 @@ export class FileStore {
   }
 
   /**
+   * Read a memory by its file key (filename stem without .md extension).
+   * E.g., "2026-04-15_psycheros" or "2026-W15" or "2026-03-20_first-conversation".
+   * Searches each granularity directory for the matching file.
+   */
+  async readMemoryByKey(memoryKey: string): Promise<MemoryEntry | null> {
+    const granularities: Granularity[] = ["daily", "weekly", "monthly", "yearly", "significant"];
+
+    for (const granularity of granularities) {
+      const filePath = join(this.dataDir, "memories", granularity, `${memoryKey}.md`);
+
+      try {
+        const content = await Deno.readTextFile(filePath);
+        const stat = await Deno.stat(filePath);
+
+        // Parse the memoryKey back into date + suffix
+        const dateMatch = memoryKey.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (!dateMatch) continue;
+        const date = dateMatch[1];
+        const suffix = memoryKey.slice(date.length + 1); // everything after "YYYY-MM-DD_"
+
+        const isSignificant = granularity === "significant" && suffix;
+
+        return {
+          id: `${granularity}-${date}`,
+          granularity,
+          date,
+          content,
+          chatIds: [],
+          sourceInstance: isSignificant ? "" : (suffix || ""),
+          version: 1,
+          createdAt: stat.birthtime?.toISOString() ?? new Date().toISOString(),
+          updatedAt: stat.mtime?.toISOString() ?? new Date().toISOString(),
+          ...(isSignificant ? { slug: suffix } : {}),
+        };
+      } catch (error) {
+        if (error instanceof Deno.errors.NotFound) continue;
+        throw error;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * List all memories of a granularity.
    * Parses instance suffix from filenames (e.g., 2026-03-20_psycheros.md).
    */

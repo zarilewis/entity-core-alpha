@@ -191,3 +191,7 @@ export function getEmbedder(): LocalEmbedder {
   }
   return embedderInstance;
 }
+
+export { EmbeddingCache } from "./cache.ts";
+export type { CachedEmbedding, EmbeddingCacheStats } from "./cache.ts";
+export { computeMemoryKey } from "./cache.ts";

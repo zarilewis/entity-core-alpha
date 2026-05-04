@@ -82,10 +82,11 @@ finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15
 
 1. The query is embedded locally using the same model as Psycheros (`all-MiniLM-L6-v2`)
 2. Entity nodes in the knowledge graph matching the query are found (for graph boosting)
-3. All memory files across all granularities are loaded, embedded, and scored
-4. Each candidate memory is scored using the multi-signal formula above
-5. Results are sorted by final score and filtered by `minScore`
-6. Excerpts are returned: short memories (<2000 chars) in full; longer memories get the most relevant section with surrounding context
+3. **Cached embeddings** (preferred): KNN search against pre-computed embeddings stored in `graph.db` via sqlite-vec. Returns top candidates in sub-second time. Embeddings are computed eagerly when memories are created/updated via MCP, and lazily on first search for any uncached memories.
+4. **Full scan fallback**: If the embedding cache is empty (e.g., fresh install), all memory files are loaded, embedded, and cached as they go. Each file only needs to be embedded once — subsequent searches use the cached vector.
+5. Each candidate memory is scored using the multi-signal formula above
+6. Results are sorted by final score and filtered by `minScore`
+7. Excerpts are returned: short memories (<2000 chars) in full; longer memories get the most relevant section with surrounding context
 
 ### Fallback
 
@@ -104,6 +105,7 @@ Results from the same embodiment are boosted, making memories contextually relev
 | `src/consolidation/periods.ts` | ISO week helpers, period calculation, date filtering |
 | `src/consolidation/prompts.ts` | LLM prompt templates for consolidation |
 | `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |
+| `src/embeddings/cache.ts` | Embedding cache — stores pre-computed memory vectors in `graph.db` with content-hash invalidation |
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `src/tools/sync.ts` | Sync MCP tools (pull, push, status) |
 | `src/sync/versioning.ts` | Vector clock implementation |

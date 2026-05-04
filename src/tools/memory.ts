@@ -10,6 +10,8 @@ import type { FileStore } from "../storage/mod.ts";
 import type { GraphStore } from "../graph/mod.ts";
 import type { MemoryEntry, Granularity } from "../types.ts";
 import { getEmbedder } from "../embeddings/mod.ts";
+import type { EmbeddingCache } from "../embeddings/mod.ts";
+import { computeMemoryKey } from "../embeddings/mod.ts";
 
 /**
  * Schema for memory granularity.
@@ -143,7 +145,7 @@ export interface MemoryListOutput {
 /**
  * Create the memory/create tool handler.
  */
-export function createMemoryCreateHandler(store: FileStore) {
+export function createMemoryCreateHandler(store: FileStore, cache?: EmbeddingCache) {
   return async (input: z.infer<typeof MemoryCreateSchema>): Promise<MemoryCreateOutput> => {
     const { granularity, date, content, chatIds, instanceId, participatingInstances, slug } = input;
 
@@ -163,6 +165,13 @@ export function createMemoryCreateHandler(store: FileStore) {
 
     await store.writeMemory(memory);
 
+    // Eagerly cache embedding (fire-and-forget, same pattern as graph extraction)
+    if (cache) {
+      cache.getOrCompute(memory, getEmbedder())
+        .then(() => console.error(`[EmbeddingCache] Cached embedding for ${memory.id}`))
+        .catch((err) => console.error(`[EmbeddingCache] Failed to cache ${memory.id}:`, err));
+    }
+
     return {
       success: true,
       message: `I have recorded a ${granularity} memory for ${date}.`,
@@ -179,7 +188,7 @@ export function createMemoryCreateHandler(store: FileStore) {
  *
  * Falls back to text matching if vector search is unavailable.
  */
-export function createMemorySearchHandler(store: FileStore, graphStore: GraphStore, config: {
+export function createMemorySearchHandler(store: FileStore, graphStore: GraphStore, cache: EmbeddingCache | undefined, config: {
   instanceBoost?: number;
   minScore?: number;
   maxResults?: number;
@@ -208,6 +217,7 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
         instanceId,
         store,
         graphStore,
+        cache,
         maxResultsActual,
         minScoreActual,
         { VECTOR_WEIGHT, RECENCY_WEIGHT, GRAPH_WEIGHT, INSTANCE_WEIGHT, RECENCY_DECAY_RATE, instanceBoost },
@@ -263,6 +273,7 @@ async function vectorSearch(
   instanceId: string,
   store: FileStore,
   graphStore: GraphStore,
+  cache: EmbeddingCache | undefined,
   maxResults: number,
   minScore: number,
   weights: {
@@ -287,7 +298,6 @@ async function vectorSearch(
     relevantEntityLabels.add(er.node.label.toLowerCase());
   }
 
-  // Step 2: Load all memories and compute embeddings
   const embedder = getEmbedder();
   const granularities: Granularity[] = ["daily", "weekly", "monthly", "yearly", "significant"];
 
@@ -304,27 +314,28 @@ async function vectorSearch(
     finalScore: number;
   }> = [];
 
-  for (const granularity of granularities) {
-    const memories = await store.listMemories(granularity);
+  if (cache && cache.isAvailable() && cache.getStats().totalCached > 0) {
+    // FAST PATH: KNN search on cached embeddings
+    const knnCount = Math.max(maxResults * 5, 50);
+    const candidates = cache.search(queryEmbedding, knnCount);
 
-    for (const memory of memories) {
-      // Embed memory content (truncate to avoid excessive computation)
-      const content = memory.content.substring(0, 3000);
-      const memoryEmbedding = await embedder.embed(content);
-      if (!memoryEmbedding) continue;
+    for (const candidate of candidates) {
+      if (results.length >= maxResults && candidate.score < minScore) break;
 
-      const vectorScore = cosineSimilarity(queryEmbedding, memoryEmbedding);
+      const memory = await store.readMemoryByKey(candidate.memoryKey);
+      if (!memory) continue;
+
+      const vectorScore = candidate.score;
 
       // Skip if vector score is too low (early filter)
       if (vectorScore < minScore * 0.5) continue;
 
-      // Recency score
       const recencyScore = computeRecencyScore(memory.date, weights.RECENCY_DECAY_RATE);
 
-      // Graph boost: check if memory content mentions any high-scoring entity labels
+      // Graph boost
       let graphBoost = 0;
       if (relevantEntityLabels.size > 0) {
-        const lowerContent = content.toLowerCase();
+        const lowerContent = memory.content.toLowerCase();
         let matchCount = 0;
         for (const label of relevantEntityLabels) {
           if (lowerContent.includes(label)) {
@@ -332,15 +343,12 @@ async function vectorSearch(
           }
         }
         if (matchCount > 0) {
-          // Normalize: more entity matches = higher boost, but diminishing returns
           graphBoost = Math.min(1, matchCount / Math.log(matchCount + 2));
         }
       }
 
-      // Instance boost
       const instanceScore = memory.sourceInstance === instanceId ? weights.instanceBoost : 0;
 
-      // Compute final score
       const finalScore = (vectorScore * weights.VECTOR_WEIGHT) +
         (recencyScore * weights.RECENCY_WEIGHT) +
         (graphBoost * weights.GRAPH_WEIGHT) +
@@ -359,6 +367,65 @@ async function vectorSearch(
         finalScore,
       });
     }
+  } else {
+    // FALLBACK: Embed all memories (current behavior), but cache as we go
+    for (const granularity of granularities) {
+      const memories = await store.listMemories(granularity);
+
+      for (const memory of memories) {
+        const content = memory.content.substring(0, 3000);
+        let memoryEmbedding: number[] | null;
+
+        // Try cache first, compute and cache on miss
+        if (cache) {
+          const cached = await cache.getOrCompute(memory, embedder);
+          memoryEmbedding = cached?.embedding ?? null;
+        } else {
+          memoryEmbedding = await embedder.embed(content);
+        }
+        if (!memoryEmbedding) continue;
+
+        const vectorScore = cosineSimilarity(queryEmbedding, memoryEmbedding);
+
+        if (vectorScore < minScore * 0.5) continue;
+
+        const recencyScore = computeRecencyScore(memory.date, weights.RECENCY_DECAY_RATE);
+
+        let graphBoost = 0;
+        if (relevantEntityLabels.size > 0) {
+          const lowerContent = content.toLowerCase();
+          let matchCount = 0;
+          for (const label of relevantEntityLabels) {
+            if (lowerContent.includes(label)) {
+              matchCount++;
+            }
+          }
+          if (matchCount > 0) {
+            graphBoost = Math.min(1, matchCount / Math.log(matchCount + 2));
+          }
+        }
+
+        const instanceScore = memory.sourceInstance === instanceId ? weights.instanceBoost : 0;
+
+        const finalScore = (vectorScore * weights.VECTOR_WEIGHT) +
+          (recencyScore * weights.RECENCY_WEIGHT) +
+          (graphBoost * weights.GRAPH_WEIGHT) +
+          (instanceScore * weights.INSTANCE_WEIGHT);
+
+        scored.push({
+          memoryId: memory.id,
+          granularity: memory.granularity,
+          date: memory.date,
+          sourceInstance: memory.sourceInstance,
+          content: memory.content,
+          vectorScore,
+          recencyScore,
+          graphBoost,
+          instanceScore,
+          finalScore,
+        });
+      }
+    }
   }
 
   // Step 3: Sort by final score
@@ -369,7 +436,6 @@ async function vectorSearch(
     if (results.length >= maxResults) break;
     if (item.finalScore < minScore) break; // Sorted, so we can stop early
 
-    // Find the best excerpt: try to find a sentence containing query terms
     const excerpt = findBestExcerpt(item.content, query);
 
     results.push({
@@ -584,7 +650,7 @@ export function createMemoryReadHandler(store: FileStore) {
  * Explicitly overwrites a memory (no append merge).
  * Sets editedBy field for future conflict resolution awareness.
  */
-export function createMemoryUpdateHandler(store: FileStore) {
+export function createMemoryUpdateHandler(store: FileStore, cache?: EmbeddingCache) {
   return async (input: z.infer<typeof MemoryUpdateSchema>): Promise<MemoryUpdateOutput> => {
     const { granularity, date, content, editedBy, instanceId } = input;
 
@@ -610,6 +676,13 @@ export function createMemoryUpdateHandler(store: FileStore) {
 
     await store.writeMemory(memory);
 
+    // Re-cache embedding (fire-and-forget)
+    if (cache) {
+      cache.getOrCompute(memory, getEmbedder())
+        .then(() => console.error(`[EmbeddingCache] Re-cached embedding for ${memory.id}`))
+        .catch((err) => console.error(`[EmbeddingCache] Failed to re-cache ${memory.id}:`, err));
+    }
+
     return {
       success: true,
       message: `I have updated the ${granularity} memory for ${date}.`,
@@ -624,9 +697,12 @@ export function createMemoryUpdateHandler(store: FileStore) {
 /**
  * Create the memory/delete tool handler.
  */
-export function createMemoryDeleteHandler(store: FileStore) {
+export function createMemoryDeleteHandler(store: FileStore, cache?: EmbeddingCache) {
   return async (input: z.infer<typeof MemoryDeleteSchema>): Promise<MemoryDeleteOutput> => {
     const { granularity, date, instanceId, slug } = input;
+
+    // Compute memory key before deleting (for cache cleanup)
+    const memoryKey = computeMemoryKey({ granularity, date, sourceInstance: instanceId, slug });
 
     const deleted = await store.deleteMemory(
       granularity as Granularity,
@@ -634,6 +710,11 @@ export function createMemoryDeleteHandler(store: FileStore) {
       instanceId,
       slug,
     );
+
+    // Clean up cached embedding
+    if (cache && deleted) {
+      cache.delete(memoryKey);
+    }
 
     return {
       success: deleted,

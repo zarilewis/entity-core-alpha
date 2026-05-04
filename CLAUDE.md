@@ -49,6 +49,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 | `src/graph/memory-integration.ts` | Auto-extract entities from memories into graph |
 | `scripts/batch-populate-graph.ts` | Batch backfill graph from existing memory files |
 | `src/embeddings/mod.ts` | Local embedding model (all-MiniLM-L6-v2) |
+| `src/embeddings/cache.ts` | Embedding cache (SQLite + sqlite-vec, content-hash invalidation) |
 | `src/storage/file-store.ts` | File-based storage implementation |
 | `src/sync/versioning.ts` | Vector clocks for distributed versioning |
 
@@ -65,7 +66,7 @@ ENTITY_CORE_DATA_DIR=./data deno task dev
 - Identity files: `data/{self,user,relationship,custom}/*.md`
 - Identity metadata: `data/identity-meta.json` (prompt label mappings)
 - Memories: `data/memories/{daily,weekly,monthly,yearly,significant}/*.md`
-- Knowledge graph: `data/graph.db` (SQLite + sqlite-vec)
+- Knowledge graph: `data/graph.db` (SQLite + sqlite-vec, also stores memory embedding cache)
 - Snapshots: `data/.snapshots/{self,user,relationship,custom}/`
 
 ## Documentation Index

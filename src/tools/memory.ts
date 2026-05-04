@@ -208,9 +208,15 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
     const maxResultsActual = input.maxResults ?? maxResults;
     const minScoreActual = input.minScore ?? minScore;
 
+    const embedder = getEmbedder();
+    console.error(`[memory_search] query="${query.substring(0, 60)}" instance=${instanceId} minScore=${minScoreActual} maxResults=${maxResultsActual}`);
+    console.error(`[memory_search] embedder ready=${embedder.isReady()} failed=${embedder.hasFailed()}`);
+    console.error(`[memory_search] cache available=${cache?.isAvailable()} stats=${JSON.stringify(cache?.getStats())}`);
+
     // Try vector search first
-    const queryEmbedding = input.queryEmbedding ?? await getEmbedder().embed(query);
+    const queryEmbedding = input.queryEmbedding ?? await embedder.embed(query);
     if (queryEmbedding) {
+      console.error(`[memory_search] query embedded (${queryEmbedding.length} dims), using vector search`);
       return await vectorSearch(
         queryEmbedding,
         query,
@@ -225,6 +231,7 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
     }
 
     // Fall back to text matching
+    console.error(`[memory_search] embedder returned null, falling back to text search`);
     return textSearch(query, instanceId, store, maxResultsActual, minScoreActual, instanceBoost);
   };
 }
@@ -319,6 +326,11 @@ async function vectorSearch(
     // Over-fetch generously to ensure older memories aren't excluded from scoring
     const knnCount = Math.max(maxResults * 20, 200);
     const candidates = cache.search(queryEmbedding, knnCount);
+    console.error(`[memory_search] KNN returned ${candidates.length} candidates (k=${knnCount})`);
+    if (candidates.length > 0) {
+      console.error(`[memory_search] top3: ${candidates.slice(0, 3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
+      console.error(`[memory_search] last3: ${candidates.slice(-3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
+    }
 
     for (const candidate of candidates) {
       if (results.length >= maxResults && candidate.score < minScore) break;
@@ -431,6 +443,11 @@ async function vectorSearch(
 
   // Step 3: Sort by final score
   scored.sort((a, b) => b.finalScore - a.finalScore);
+
+  console.error(`[memory_search] scored ${scored.length} candidates, minScore=${minScore}`);
+  if (scored.length > 0) {
+    console.error(`[memory_search] top3 scored: ${scored.slice(0, 3).map(s => `${s.memoryId} vec=${s.vectorScore.toFixed(3)} rec=${s.recencyScore.toFixed(3)} final=${s.finalScore.toFixed(3)}`).join(' | ')}`);
+  }
 
   // Step 4: Build output with excerpts
   for (const item of scored) {

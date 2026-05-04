@@ -200,8 +200,8 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
   const RECENCY_WEIGHT = 0.15;
   const GRAPH_WEIGHT = 0.15;
   const INSTANCE_WEIGHT = 0.1;
-  // Recency decay rate: half-life ~69 days
-  const RECENCY_DECAY_RATE = 0.01;
+  // Recency decay rate: half-life ~100 days
+  const RECENCY_DECAY_RATE = 0.007;
 
   return async (input: z.infer<typeof MemorySearchSchema>): Promise<MemorySearchOutput> => {
     const { query, instanceId } = input;
@@ -316,7 +316,8 @@ async function vectorSearch(
 
   if (cache && cache.isAvailable() && cache.getStats().totalCached > 0) {
     // FAST PATH: KNN search on cached embeddings
-    const knnCount = Math.max(maxResults * 5, 50);
+    // Over-fetch generously to ensure older memories aren't excluded from scoring
+    const knnCount = Math.max(maxResults * 20, 200);
     const candidates = cache.search(queryEmbedding, knnCount);
 
     for (const candidate of candidates) {

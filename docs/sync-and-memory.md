@@ -74,7 +74,7 @@ finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15
 | Signal | Weight | Description |
 |--------|--------|-------------|
 | **Vector similarity** | 0.6 | Semantic match via embeddings (all-MiniLM-L6-v2, 384 dims) |
-| **Recency** | 0.15 | Inverse decay: `1 / (1 + age_days × 0.01)` — half-life ~69 days |
+| **Recency** | 0.15 | Inverse decay: `1 / (1 + age_days × 0.007)` — half-life ~100 days |
 | **Graph boost** | 0.15 | Boosts memories linked to entity nodes matching the query |
 | **Instance affinity** | 0.1 | +0.1 for memories from the same embodiment |
 

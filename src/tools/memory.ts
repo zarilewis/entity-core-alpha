@@ -196,9 +196,9 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
   const { instanceBoost = 0.1, minScore = 0.3, maxResults = 10 } = config;
 
   // Scoring weights
-  const VECTOR_WEIGHT = 0.6;
-  const RECENCY_WEIGHT = 0.15;
-  const GRAPH_WEIGHT = 0.15;
+  const VECTOR_WEIGHT = 0.8;
+  const RECENCY_WEIGHT = 0.05;
+  const GRAPH_WEIGHT = 0.05;
   const INSTANCE_WEIGHT = 0.1;
   // Recency decay rate: half-life ~100 days
   const RECENCY_DECAY_RATE = 0.007;

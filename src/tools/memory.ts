@@ -214,7 +214,7 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
     };
 
     const embedder = getEmbedder();
-    log(`[${new Date().toISOString()}] query="${query.substring(0, 80)}" instance=${instanceId} minScore=${minScoreActual} maxResults=${maxResultsActual}`);
+    log(`[${new Date().toISOString()}] query="${query}" instance=${instanceId} minScore=${minScoreActual} maxResults=${maxResultsActual}`);
     log(`embedder ready=${embedder.isReady()} failed=${embedder.hasFailed()}`);
     log(`cache available=${cache?.isAvailable()} stats=${JSON.stringify(cache?.getStats())}`);
 
@@ -338,6 +338,13 @@ async function vectorSearch(
       log(`top3: ${candidates.slice(0, 3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
       log(`last3: ${candidates.slice(-3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
     }
+    // Log rank of any Halloween-related candidates
+    const halloweenCandidates = candidates.map((c, i) => ({ ...c, rank: i + 1 })).filter(c => c.memoryKey.includes("halloween"));
+    if (halloweenCandidates.length > 0) {
+      log(`Halloween KNN ranks: ${halloweenCandidates.map(c => `#${c.rank} ${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
+    } else {
+      log(`Halloween: NOT in KNN candidates`);
+    }
 
     for (const candidate of candidates) {
       if (results.length >= maxResults && candidate.score < minScore) break;
@@ -454,6 +461,13 @@ async function vectorSearch(
   log(`scored ${scored.length} candidates, minScore=${minScore}`);
   if (scored.length > 0) {
     log(`top3 scored: ${scored.slice(0, 3).map(s => `${s.memoryId} vec=${s.vectorScore.toFixed(3)} rec=${s.recencyScore.toFixed(3)} final=${s.finalScore.toFixed(3)}`).join(' | ')}`);
+  }
+  // Log rank of Halloween memories after final scoring
+  const halloweenScored = scored.map((s, i) => ({ ...s, rank: i + 1 })).filter(s => s.memoryId.includes("halloween") || s.date.includes("10-31"));
+  if (halloweenScored.length > 0) {
+    log(`Halloween scored ranks: ${halloweenScored.map(s => `#${s.rank} ${s.memoryId} vec=${s.vectorScore.toFixed(3)} final=${s.finalScore.toFixed(3)}`).join(', ')}`);
+  } else {
+    log(`Halloween: NOT in scored candidates (filtered out or not in KNN)`);
   }
 
   // Step 4: Build output with excerpts

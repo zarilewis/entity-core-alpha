@@ -208,11 +208,12 @@ export class FileStore {
   }
 
   /**
-   * Read a memory file by granularity, date, and optionally instance.
-   * For daily memories, instance is required to find the correct file.
+   * Read a memory file by granularity, date, and optionally instance/slug.
+   * For daily memories, sourceInstance identifies the file suffix.
+   * For significant memories, slug identifies the file suffix.
    */
-  async readMemory(granularity: Granularity, date: string, sourceInstance?: string): Promise<MemoryEntry | null> {
-    const filePath = this.getMemoryPath({ granularity, date, sourceInstance });
+  async readMemory(granularity: Granularity, date: string, sourceInstance?: string, slug?: string): Promise<MemoryEntry | null> {
+    const filePath = this.getMemoryPath({ granularity, date, sourceInstance, slug });
 
     try {
       const content = await Deno.readTextFile(filePath);
@@ -278,13 +279,24 @@ export class FileStore {
     try {
       for await (const entry of Deno.readDir(dir)) {
         if (entry.isFile && entry.name.endsWith(".md")) {
-          // Parse filename: YYYY-MM-DD.md or YYYY-MM-DD_instance.md
+          // Parse filename:
+          //   Daily:       YYYY-MM-DD_instance.md
+          //   Significant: YYYY-MM-DD_slug-with-hyphens.md
+          //   Other:       YYYY-MM-DD.md
           const stem = entry.name.replace(/\.md$/, "");
-          const date = stem.replace(/_\w+$/, "") || stem; // Strip instance suffix if present
-          const instanceMatch = stem.match(/^(.+?)_(\w+)$/);
-          const sourceInstance = instanceMatch ? instanceMatch[2] : undefined;
+          const dateMatch = stem.match(/^(\d{4}-\d{2}-\d{2})/);
+          if (!dateMatch) continue;
+          const date = dateMatch[1];
+          const suffix = stem.slice(date.length + 1); // everything after "YYYY-MM-DD_"
 
-          const memory = await this.readMemory(granularity, date, sourceInstance);
+          // For significant memories, the suffix is the slug; for daily, it's the instance ID
+          const isSignificant = granularity === "significant" && suffix;
+          const memory = await this.readMemory(
+            granularity,
+            date,
+            isSignificant ? undefined : (suffix || undefined),
+            isSignificant ? suffix : undefined,
+          );
           if (memory) {
             memories.push(memory);
           }

@@ -229,6 +229,7 @@ export class FileStore {
         version: 1,
         createdAt: stat.birthtime?.toISOString() ?? new Date().toISOString(),
         updatedAt: stat.mtime?.toISOString() ?? new Date().toISOString(),
+        ...(slug ? { slug } : {}),
       };
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {

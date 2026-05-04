@@ -65,17 +65,21 @@ data/memories/
 
 ## Memory Search & Retrieval
 
-`memory_search` uses multi-signal ranking to surface the most relevant memories:
+`memory_search` uses per-sentence embedding and multi-signal ranking:
 
 ```
-finalScore = (vectorScore × 0.6) + (recencyScore × 0.15) + (graphBoost × 0.15) + (instanceScore × 0.1)
+finalScore = (vectorScore × 0.8) + (recencyScore × 0.05) + (graphBoost × 0.05) + (instanceScore × 0.1)
 ```
+
+### Per-Sentence Embedding
+
+The user's message is split into sentences, and each sentence is embedded and searched independently. KNN results are merged (deduplicated, keeping best score per memory). This handles natural conversation where the actual topic is embedded in a longer message alongside pleasantries and context. Capped at 5 sentences.
 
 | Signal | Weight | Description |
 |--------|--------|-------------|
-| **Vector similarity** | 0.6 | Semantic match via embeddings (all-MiniLM-L6-v2, 384 dims) |
-| **Recency** | 0.15 | Inverse decay: `1 / (1 + age_days × 0.007)` — half-life ~100 days |
-| **Graph boost** | 0.15 | Boosts memories linked to entity nodes matching the query |
+| **Vector similarity** | 0.8 | Semantic match via embeddings (all-MiniLM-L6-v2, 384 dims) |
+| **Recency** | 0.05 | Inverse decay: `1 / (1 + age_days × 0.007)` — half-life ~100 days |
+| **Graph boost** | 0.05 | Boosts memories linked to entity nodes matching the query |
 | **Instance affinity** | 0.1 | +0.1 for memories from the same embodiment |
 
 ### How It Works

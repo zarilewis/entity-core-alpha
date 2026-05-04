@@ -208,22 +208,27 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
     const maxResultsActual = input.maxResults ?? maxResults;
     const minScoreActual = input.minScore ?? minScore;
 
-    // Diagnostic: write to file since stderr pipe is unreadable inside container
-    const log = (msg: string) => {
-      try { Deno.writeTextFileSync("/tmp/memory-search-debug.log", msg + "\n", { append: true }); } catch {}
-    };
-
     const embedder = getEmbedder();
-    log(`[${new Date().toISOString()}] query="${query}" instance=${instanceId} minScore=${minScoreActual} maxResults=${maxResultsActual}`);
-    log(`embedder ready=${embedder.isReady()} failed=${embedder.hasFailed()}`);
-    log(`cache available=${cache?.isAvailable()} stats=${JSON.stringify(cache?.getStats())}`);
 
-    // Try vector search first
-    const queryEmbedding = input.queryEmbedding ?? await embedder.embed(query);
-    if (queryEmbedding) {
-      log(`query embedded (${queryEmbedding.length} dims), using vector search`);
+    // Split query into sentences and embed each separately.
+    // This handles natural conversation where the actual topic/question
+    // is buried in a longer message alongside pleasantries and context.
+    // Each sentence becomes its own KNN query; results are merged.
+    const sentences = splitIntoSentences(query);
+    const queryEmbeddings: number[][] = [];
+
+    if (input.queryEmbedding) {
+      queryEmbeddings.push(input.queryEmbedding);
+    } else {
+      for (const sentence of sentences) {
+        const emb = await embedder.embed(sentence);
+        if (emb) queryEmbeddings.push(emb);
+      }
+    }
+
+    if (queryEmbeddings.length > 0) {
       return await vectorSearch(
-        queryEmbedding,
+        queryEmbeddings,
         query,
         instanceId,
         store,
@@ -232,14 +237,30 @@ export function createMemorySearchHandler(store: FileStore, graphStore: GraphSto
         maxResultsActual,
         minScoreActual,
         { VECTOR_WEIGHT, RECENCY_WEIGHT, GRAPH_WEIGHT, INSTANCE_WEIGHT, RECENCY_DECAY_RATE, instanceBoost },
-        log,
       );
     }
 
     // Fall back to text matching
-    log(`embedder returned null, falling back to text search`);
     return textSearch(query, instanceId, store, maxResultsActual, minScoreActual, instanceBoost);
   };
+}
+
+/**
+ * Split text into sentences for per-sentence embedding.
+ * Simple split on sentence-ending punctuation. Caps at MAX_SENTENCES
+ * to avoid excessive embedding work on very long messages.
+ */
+const MAX_SENTENCES = 5;
+
+function splitIntoSentences(text: string): string[] {
+  // Split on .!? followed by whitespace or end of string
+  const parts = text.split(/(?<=[.!?])\s+/);
+  if (parts.length <= 1) return [text];
+
+  // Deduplicate by keeping only sentences that add meaningful content
+  // (skip very short fragments like "ok" or "hmm")
+  const meaningful = parts.filter((s) => s.trim().length > 5);
+  return meaningful.slice(0, MAX_SENTENCES);
 }
 
 /**
@@ -277,11 +298,12 @@ function cosineSimilarity(a: number[], b: number[]): number {
 /**
  * Vector-based memory search with multi-signal ranking.
  *
- * Reads memory files from the FileStore, embeds their content, and scores
- * using vector similarity + recency + graph entity boost + instance affinity.
+ * Accepts multiple query embeddings (one per sentence) for robust retrieval
+ * in natural conversation. Each embedding produces KNN candidates; results
+ * are merged (deduplicated, keeping best score per memory).
  */
 async function vectorSearch(
-  queryEmbedding: number[],
+  queryEmbeddings: number[][],
   query: string,
   instanceId: string,
   store: FileStore,
@@ -297,13 +319,13 @@ async function vectorSearch(
     RECENCY_DECAY_RATE: number;
     instanceBoost: number;
   },
-  log: (msg: string) => void,
 ): Promise<MemorySearchOutput> {
   const results: MemorySearchOutput["results"] = [];
 
   // Step 1: Search graph for entity nodes related to the query (for graph boost signal)
+  // Use first embedding for graph search (entity names are typically short phrases)
   const entityResults = graphStore.searchNodes({
-    queryEmbedding,
+    queryEmbedding: queryEmbeddings[0],
     minScore: 0.3,
     limit: 20,
   });
@@ -330,21 +352,22 @@ async function vectorSearch(
 
   if (cache && cache.isAvailable() && cache.getStats().totalCached > 0) {
     // FAST PATH: KNN search on cached embeddings
-    // Over-fetch generously to ensure older memories aren't excluded from scoring
+    // Run KNN for each query embedding (per-sentence) and merge results
     const knnCount = Math.max(maxResults * 20, 200);
-    const candidates = cache.search(queryEmbedding, knnCount);
-    log(`KNN returned ${candidates.length} candidates (k=${knnCount})`);
-    if (candidates.length > 0) {
-      log(`top3: ${candidates.slice(0, 3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
-      log(`last3: ${candidates.slice(-3).map(c => `${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
+    const mergedCandidates = new Map<string, { memoryKey: string; score: number }>();
+
+    for (const queryEmbedding of queryEmbeddings) {
+      const candidates = cache.search(queryEmbedding, knnCount);
+      for (const candidate of candidates) {
+        const existing = mergedCandidates.get(candidate.memoryKey);
+        if (!existing || candidate.score > existing.score) {
+          mergedCandidates.set(candidate.memoryKey, candidate);
+        }
+      }
     }
-    // Log rank of any Halloween-related candidates
-    const halloweenCandidates = candidates.map((c, i) => ({ ...c, rank: i + 1 })).filter(c => c.memoryKey.includes("halloween"));
-    if (halloweenCandidates.length > 0) {
-      log(`Halloween KNN ranks: ${halloweenCandidates.map(c => `#${c.rank} ${c.memoryKey}(${c.score.toFixed(3)})`).join(', ')}`);
-    } else {
-      log(`Halloween: NOT in KNN candidates`);
-    }
+
+    const candidates = Array.from(mergedCandidates.values())
+      .sort((a, b) => b.score - a.score);
 
     for (const candidate of candidates) {
       if (results.length >= maxResults && candidate.score < minScore) break;
@@ -412,7 +435,8 @@ async function vectorSearch(
         }
         if (!memoryEmbedding) continue;
 
-        const vectorScore = cosineSimilarity(queryEmbedding, memoryEmbedding);
+        // Use the best similarity across all query embeddings
+        const vectorScore = Math.max(...queryEmbeddings.map((qe) => cosineSimilarity(qe, memoryEmbedding)));
 
         if (vectorScore < minScore * 0.5) continue;
 
@@ -457,18 +481,6 @@ async function vectorSearch(
 
   // Step 3: Sort by final score
   scored.sort((a, b) => b.finalScore - a.finalScore);
-
-  log(`scored ${scored.length} candidates, minScore=${minScore}`);
-  if (scored.length > 0) {
-    log(`top3 scored: ${scored.slice(0, 3).map(s => `${s.memoryId} vec=${s.vectorScore.toFixed(3)} rec=${s.recencyScore.toFixed(3)} final=${s.finalScore.toFixed(3)}`).join(' | ')}`);
-  }
-  // Log rank of Halloween memories after final scoring
-  const halloweenScored = scored.map((s, i) => ({ ...s, rank: i + 1 })).filter(s => s.memoryId.includes("halloween") || s.date.includes("10-31"));
-  if (halloweenScored.length > 0) {
-    log(`Halloween scored ranks: ${halloweenScored.map(s => `#${s.rank} ${s.memoryId} vec=${s.vectorScore.toFixed(3)} final=${s.finalScore.toFixed(3)}`).join(', ')}`);
-  } else {
-    log(`Halloween: NOT in scored candidates (filtered out or not in KNN)`);
-  }
 
   // Step 4: Build output with excerpts
   for (const item of scored) {
